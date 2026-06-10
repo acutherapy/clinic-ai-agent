@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { sendSMS } from "@/lib/ringcentral";
 
 export async function GET() {
   try {
@@ -46,6 +47,11 @@ AcuTherapy Clinics
       console.log("TO:", patient.phone);
       console.log(smsMessage);
       console.log("=================================");
+
+      await sendSMS(
+  patient.phone,
+  smsMessage
+);
 
       await supabase
         .from("appointments")
