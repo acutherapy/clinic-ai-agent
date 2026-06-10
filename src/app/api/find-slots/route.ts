@@ -53,13 +53,30 @@ export async function GET() {
     const day = new Date();
     day.setDate(day.getDate() + d);
 
-    const hours = [9,10,11,14,15,16];
+    const dayOfWeek = day.getDay();
+
+    let hours: number[] = [];
+
+    // Sunday
+    if (dayOfWeek === 0) {
+      continue;
+    }
+
+    // Saturday
+    if (dayOfWeek === 6) {
+      hours = [9, 10, 11];
+    }
+
+    // Monday-Friday
+    if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+      hours = [9, 10, 11, 12];
+    }
 
     for (const hour of hours) {
 
       const slot = new Date(day);
 
-      slot.setHours(hour,0,0,0);
+      slot.setHours(hour, 0, 0, 0);
 
       const key = slot.toLocaleString(
         "en-US",
@@ -77,7 +94,39 @@ export async function GET() {
     }
   }
 
+  const option1 = availableSlots[0];
+
+const firstDateObj =
+  new Date(option1);
+
+const firstHour =
+  firstDateObj.getHours();
+
+const option2 =
+  availableSlots.find(slot => {
+
+    const slotDate =
+      new Date(slot);
+
+    const diffDays =
+      Math.floor(
+        (
+          slotDate.getTime() -
+          firstDateObj.getTime()
+        ) /
+        (1000 * 60 * 60 * 24)
+      );
+
+    return (
+      diffDays >= 2 &&
+      slotDate.getHours() !== firstHour
+    );
+  });
+
   return NextResponse.json({
-    slots: availableSlots.slice(0,3),
+    slots: [
+      option1,
+      option2,
+    ].filter(Boolean),
   });
 }
