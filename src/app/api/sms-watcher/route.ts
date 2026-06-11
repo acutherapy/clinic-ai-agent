@@ -26,8 +26,18 @@ export async function GET() {
       m.readStatus === "Unread"
   );
 
-  return NextResponse.json({
-    count: unread.length,
-    messages: unread,
-  });
+  const simplified = unread.map(
+  (m: any) => ({
+    phone: m.from?.phoneNumber,
+    name: m.from?.name || "",
+    message: m.subject,
+    conversationId: m.conversationId,
+    receivedAt: m.creationTime,
+  })
+);
+
+return NextResponse.json({
+  count: simplified.length,
+  messages: simplified,
+});
 }
