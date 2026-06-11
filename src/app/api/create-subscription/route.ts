@@ -15,16 +15,29 @@ export async function GET() {
       jwt: process.env.RINGCENTRAL_JWT!,
     });
 
-    return NextResponse.json({
-      success: true,
-      message: "login success",
-    });
+    const response = await platform.post(
+      "/restapi/v1.0/subscription",
+      {
+        eventFilters: [
+          "/restapi/v1.0/account/~/extension/~/message-store"
+        ],
+        deliveryMode: {
+          transportType: "WebHook",
+          address:
+            "https://clinic-ai-agent-roan.vercel.app/api/sms-webhook"
+        }
+      }
+    );
 
-  } catch (error: any) {
+    const result = await response.json();
+
+    return NextResponse.json(result);
+
+  } catch (e: any) {
     return NextResponse.json({
       success: false,
-      error: error.message,
-      stack: String(error),
+      message: e.message,
+      error: e,
     });
   }
 }
