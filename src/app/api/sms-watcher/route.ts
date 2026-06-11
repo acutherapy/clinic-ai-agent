@@ -40,3 +40,4 @@ return NextResponse.json({
     direction: m.direction,
   })),
 });
+}
