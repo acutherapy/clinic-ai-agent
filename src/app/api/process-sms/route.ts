@@ -26,55 +26,32 @@ export async function GET() {
       m.readStatus === "Unread"
   );
 
-  const results = unread.map((m: any) => {
-    const text =
-      (m.subject || "").toLowerCase();
+  const results = [];
 
-    let intent = "UNKNOWN";
-    let day = null;
-    let time = null;
+  for (const msg of unread) {
+    const bookingResponse = await fetch(
+      `${process.env.NEXT_PUBLIC_SITE_URL}/api/booking-agent`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: msg.subject,
+        }),
+      }
+    );
 
-    if (text.includes("monday")) day = "Monday";
-    if (text.includes("tuesday")) day = "Tuesday";
-    if (text.includes("wednesday")) day = "Wednesday";
-    if (text.includes("thursday")) day = "Thursday";
-    if (text.includes("friday")) day = "Friday";
-    if (text.includes("saturday")) day = "Saturday";
+    const bookingResult =
+      await bookingResponse.json();
 
-    if (text.includes("9am")) time = "9:00 AM";
-    if (text.includes("10am")) time = "10:00 AM";
-    if (text.includes("11am")) time = "11:00 AM";
-    if (text.includes("12pm")) time = "12:00 PM";
-
-    if (
-      text.includes("works") ||
-      day ||
-      time
-    ) {
-      intent = "BOOK_APPOINTMENT";
-    } else if (
-      text.includes("call me")
-    ) {
-      intent = "CALL_REQUEST";
-    } else if (
-      text.includes("on my way")
-    ) {
-      intent = "ARRIVING";
-    } else if (
-      text.includes("?")
-    ) {
-      intent = "QUESTION";
-    }
-
-    return {
-      phone: m.from?.phoneNumber,
-      name: m.from?.name || "",
-      message: m.subject,
-      intent,
-      day,
-      time,
-    };
-  });
+    results.push({
+      phone: msg.from?.phoneNumber,
+      name: msg.from?.name || "",
+      message: msg.subject,
+      ...bookingResult,
+    });
+  }
 
   return NextResponse.json({
     count: results.length,
