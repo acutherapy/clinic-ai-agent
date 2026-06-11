@@ -25,6 +25,11 @@ export async function GET() {
     m.direction === "Inbound"
 );
 
+const inbound = data.records.filter(
+  (m: any) =>
+    m.direction === "Inbound"
+);
+
 return NextResponse.json({
   totalRecords: data.records.length,
   inboundCount: inbound.length,
@@ -35,19 +40,3 @@ return NextResponse.json({
     direction: m.direction,
   })),
 });
-
-  const simplified = unread.map(
-  (m: any) => ({
-    phone: m.from?.phoneNumber,
-    name: m.from?.name || "",
-    message: m.subject,
-    conversationId: m.conversationId,
-    receivedAt: m.creationTime,
-  })
-);
-
-return NextResponse.json({
-  count: simplified.length,
-  messages: simplified,
-});
-}
