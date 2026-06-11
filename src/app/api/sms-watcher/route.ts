@@ -21,23 +21,17 @@ export async function GET() {
   const data = await response.json();
 
   const inbound = data.records.filter(
-  (m: any) =>
-    m.direction === "Inbound"
-);
+    (m: any) => m.direction === "Inbound"
+  );
 
-const inbound = data.records.filter(
-  (m: any) =>
-    m.direction === "Inbound"
-);
-
-return NextResponse.json({
-  totalRecords: data.records.length,
-  inboundCount: inbound.length,
-  sample: inbound.slice(0, 5).map((m: any) => ({
-    phone: m.from?.phoneNumber,
-    message: m.subject,
-    readStatus: m.readStatus,
-    direction: m.direction,
-  })),
-});
+  return NextResponse.json({
+    totalRecords: data.records.length,
+    inboundCount: inbound.length,
+    sample: inbound.slice(0, 5).map((m: any) => ({
+      phone: m.from?.phoneNumber,
+      message: m.subject,
+      readStatus: m.readStatus,
+      direction: m.direction,
+    })),
+  });
 }
