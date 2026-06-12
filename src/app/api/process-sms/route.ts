@@ -101,6 +101,16 @@ if (
       msg.from?.phoneNumber,
       `Great! Your appointment has been scheduled for ${bookingResult.day} at ${bookingResult.time}. A confirmation email will be sent shortly. Thank you!`
     );
+
+  } else if (
+    createResult.reason ===
+    "FULL"
+  ) {
+
+    await sendSMS(
+      msg.from?.phoneNumber,
+      `Sorry, that time is no longer available. Please contact our office for another available appointment time.`
+    );
   }
 
   results.push({
@@ -124,7 +134,6 @@ if (
     bookingResult,
   });
 }
-
 processed++;
 
 }
