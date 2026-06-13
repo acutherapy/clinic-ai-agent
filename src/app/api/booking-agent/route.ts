@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { openai } from "@/lib/openai";
+import {
+  getConversationHistory,
+} from "@/lib/conversation";
 
 export async function POST(
   req: NextRequest
@@ -12,6 +15,25 @@ export async function POST(
     const message =
       body.message || "";
 
+    const phone =
+      body.phone || "";
+
+    const history =
+      phone
+        ? await getConversationHistory(
+            phone,
+            10
+          )
+        : [];
+
+    const conversationText =
+      history
+        .map(
+          (h: any) =>
+            `${h.role.toUpperCase()}: ${h.message}`
+        )
+        .join("\n");
+
     const response =
       await openai.responses.create({
         model: "gpt-4.1-mini",
@@ -19,13 +41,51 @@ export async function POST(
         input: `
 You are an appointment booking assistant.
 
-Extract booking information from patient SMS.
+Use the conversation history to understand short replies.
+
+If a patient sends:
+- Friday 10am
+- Friday at 10
+- Friday 10:00 AM
+
+Return:
+
+{
+  "intent":"BOOK_APPOINTMENT",
+  "day":"Friday",
+  "time":"10:00 AM"
+}
+
+If a patient replies:
+
+11am works
+
+and the conversation history contains:
+
+Friday 11am
+Saturday 10am
+
+then return:
+
+{
+  "intent":"BOOK_APPOINTMENT",
+  "day":"Friday",
+  "time":"11:00 AM"
+}
+
+If a patient replies:
+
+the first one
+
+then return:
+
+{
+  "intent":"BOOK_APPOINTMENT",
+  "day":"Friday",
+  "time":"11:00 AM"
+}
 
 Return ONLY a JSON object.
-
-Do not use markdown.
-Do not use code blocks.
-Do not explain anything.
 
 Possible intents:
 
@@ -35,19 +95,20 @@ ARRIVING
 QUESTION
 UNKNOWN
 
-Example:
+Conversation History:
 
-{
-  "intent":"BOOK_APPOINTMENT",
-  "day":"Friday",
-  "time":"10:00 AM"
-}
+${conversationText}
 
-Message:
+Latest Message:
 
 ${message}
 `,
       });
+
+    console.log(
+      "GPT RAW:",
+      response.output_text
+    );
 
     let text =
       response.output_text
@@ -76,7 +137,10 @@ ${message}
 
   } catch (err: any) {
 
-    console.error(err);
+    console.error(
+      "BOOKING AGENT ERROR:",
+      err
+    );
 
     return NextResponse.json({
       success: false,
