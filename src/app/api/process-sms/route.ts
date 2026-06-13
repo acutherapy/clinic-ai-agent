@@ -102,16 +102,41 @@ if (
       `Great! Your appointment has been scheduled for ${bookingResult.day} at ${bookingResult.time}. A confirmation email will be sent shortly. Thank you!`
     );
 
-  } else if (
-    createResult.reason ===
-    "FULL"
-  ) {
+ } else if (
+  createResult.reason ===
+  "FULL"
+) {
 
-    await sendSMS(
-      msg.from?.phoneNumber,
-      `Sorry, that time is no longer available. Please contact our office for another available appointment time.`
+  const slotsResponse =
+    await fetch(
+      `${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots`
     );
-  }
+
+  const slotsResult =
+    await slotsResponse.json();
+
+  const slots =
+    slotsResult.slots || [];
+
+  const message =
+`
+Sorry, that time is no longer available.
+
+Available times:
+
+${slots.map(
+(slot: string) =>
+`• ${slot}`
+).join("\n")}
+
+Reply with the time that works best.
+`;
+
+  await sendSMS(
+    msg.from?.phoneNumber,
+    message
+  );
+}
 
   results.push({
     id: smsId,

@@ -1,83 +1,88 @@
 import { NextRequest, NextResponse } from "next/server";
+import { openai } from "@/lib/openai";
 
-export async function POST(req: NextRequest) {
-const body = await req.json();
-
-const text =
-body.message?.toLowerCase() || "";
-
-let intent = "UNKNOWN";
-let day = null;
-let time = null;
-
-// Extract day
-if (text.includes("monday")) day = "Monday";
-if (text.includes("tuesday")) day = "Tuesday";
-if (text.includes("wednesday")) day = "Wednesday";
-if (text.includes("thursday")) day = "Thursday";
-if (text.includes("friday")) day = "Friday";
-if (text.includes("saturday")) day = "Saturday";
-
-// Extract time
-if (
-text.includes("9am") ||
-text.includes("9 am") ||
-text.includes("9a")
+export async function POST(
+  req: NextRequest
 ) {
-time = "9:00 AM";
+  try {
+
+    const body =
+      await req.json();
+
+    const message =
+      body.message || "";
+
+    const response =
+      await openai.responses.create({
+        model: "gpt-4.1-mini",
+
+        input: `
+You are an appointment booking assistant.
+
+Extract booking information from patient SMS.
+
+Return ONLY a JSON object.
+
+Do not use markdown.
+Do not use code blocks.
+Do not explain anything.
+
+Possible intents:
+
+BOOK_APPOINTMENT
+CALL_REQUEST
+ARRIVING
+QUESTION
+UNKNOWN
+
+Example:
+
+{
+  "intent":"BOOK_APPOINTMENT",
+  "day":"Friday",
+  "time":"10:00 AM"
 }
 
-if (
-  text.includes("10am") ||
-  text.includes("10 am") ||
-  text.includes("10a") ||
-  text.includes("10 a")
-) {
-  time = "10:00 AM";
-}
+Message:
 
-if (
-text.includes("11am") ||
-text.includes("11 am") ||
-text.includes("11a")
-) {
-time = "11:00 AM";
-}
+${message}
+`,
+      });
 
-if (
-text.includes("12pm") ||
-text.includes("12 pm") ||
-text.includes("12p")
-) {
-time = "12:00 PM";
-}
+    let text =
+      response.output_text
+        .trim();
 
-// Detect intent
-if (
-text.includes("works") ||
-day !== null ||
-time !== null
-) {
-intent = "BOOK_APPOINTMENT";
-} else if (
-text.includes("call me")
-) {
-intent = "CALL_REQUEST";
-} else if (
-text.includes("on my way")
-) {
-intent = "ARRIVING";
-} else if (
-text.includes("?")
-) {
-intent = "QUESTION";
-}
+    text = text
+      .replace(
+        /```json/g,
+        ""
+      )
+      .replace(
+        /```/g,
+        ""
+      )
+      .trim();
 
-return NextResponse.json({
-success: true,
-intent,
-day,
-time,
-originalMessage: body.message,
-});
+    const result =
+      JSON.parse(text);
+
+    return NextResponse.json({
+      success: true,
+      ...result,
+      originalMessage:
+        message,
+    });
+
+  } catch (err: any) {
+
+    console.error(err);
+
+    return NextResponse.json({
+      success: false,
+      intent: "UNKNOWN",
+      error:
+        err.message,
+    });
+  }
 }

@@ -1,65 +1,123 @@
 import { NextRequest, NextResponse } from "next/server";
 import { calendar } from "@/lib/google";
+import { supabase } from "@/lib/supabase";
+import { sendSMS } from "@/lib/ringcentral";
 
 const CALENDAR_ID =
   "46d7671d8624d3f9f0c685943921309a7d1801a2ae584906b21ea114282206ff@group.calendar.google.com";
 
+const DR_CAI_PHONE =
+  "+18083083879";
+
 export async function POST(
-req: NextRequest
+  req: NextRequest
 ) {
-try {
-const body = await req.json();
+  try {
 
-const {
-  patientName,
-  phone,
-  startTime,
-  serviceType,
-} = body;
+    const body =
+      await req.json();
 
-const start = new Date(startTime);
+    const {
+      patientName,
+      phone,
+      startTime,
+      serviceType,
+    } = body;
 
-const end = new Date(start);
-end.setHours(
-  end.getHours() + 1
-);
+    const start =
+      new Date(startTime);
 
-const event =
-  await calendar.events.insert({
-    calendarId: CALENDAR_ID,
-    requestBody: {
-      summary:
-        `${serviceType} - ${patientName} (${phone})`,
-      start: {
-        dateTime:
+    const end =
+      new Date(start);
+
+    end.setHours(
+      end.getHours() + 1
+    );
+
+    const event =
+      await calendar.events.insert({
+        calendarId:
+          CALENDAR_ID,
+        requestBody: {
+          summary:
+            `${serviceType} - ${patientName} (${phone})`,
+          start: {
+            dateTime:
+              start.toISOString(),
+            timeZone:
+              "Pacific/Honolulu",
+          },
+          end: {
+            dateTime:
+              end.toISOString(),
+            timeZone:
+              "Pacific/Honolulu",
+          },
+        },
+      });
+
+    await supabase
+      .from(
+        "appointment_history"
+      )
+      .insert({
+        patient_name:
+          patientName,
+        phone,
+        service_type:
+          serviceType,
+        appointment_time:
           start.toISOString(),
-        timeZone:
-          "Pacific/Honolulu",
+        calendar_event_id:
+          event.data.id,
+      });
+
+    const localTime =
+      start.toLocaleString(
+        "en-US",
+        {
+          timeZone:
+            "Pacific/Honolulu",
+        }
+      );
+
+    await sendSMS(
+      DR_CAI_PHONE,
+`
+NEW BOOKING
+
+Patient:
+${patientName}
+
+Service:
+${serviceType}
+
+Time:
+${localTime}
+
+Phone:
+${phone}
+`
+    );
+
+    return NextResponse.json({
+      success: true,
+      eventId:
+        event.data.id,
+    });
+
+  } catch (err: any) {
+
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          err.message,
       },
-      end: {
-        dateTime:
-          end.toISOString(),
-        timeZone:
-          "Pacific/Honolulu",
-      },
-    },
-  });
+      {
+        status: 500,
+      }
+    );
 
-return NextResponse.json({
-  success: true,
-  eventId:
-    event.data.id,
-});
-
-} catch (err: any) {
-
-return NextResponse.json(
-  {
-    success: false,
-    error: err.message,
-  },
-  { status: 500 }
-);
-
-}
+  }
 }

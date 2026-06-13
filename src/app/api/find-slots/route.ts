@@ -1,132 +1,126 @@
 import { NextResponse } from "next/server";
-import { calendar } from "@/lib/google";
 
-const CALENDAR_ID =
-  "84okuq4catkgth1s7p2fcdb831n5pj1e@import.calendar.google.com";
+const HOURS_WEEKDAY = [9, 10, 11, 12];
+const HOURS_SATURDAY = [9, 10, 11];
 
 export async function GET() {
+  try {
 
-  const now = new Date();
+    const availableSlots: string[] = [];
 
-  const next7days = new Date();
-  next7days.setDate(now.getDate() + 7);
+    const now = new Date();
 
-  const result = await calendar.events.list({
-    calendarId: CALENDAR_ID,
-    timeMin: now.toISOString(),
-    timeMax: next7days.toISOString(),
-    singleEvents: true,
-    orderBy: "startTime",
-    maxResults: 500,
-  });
+    for (let d = 1; d <= 14; d++) {
 
-  const events = result.data.items || [];
+      const day = new Date(now);
+      day.setDate(day.getDate() + d);
 
-  const slotCounts: Record<string, number> = {};
+      const dayOfWeek = day.getDay();
 
-  events.forEach((event) => {
+      let hours: number[] = [];
 
-    if (
-      event.summary
-        ?.toLowerCase()
-        .includes("break")
-    ) return;
+      // Sunday Closed
+      if (dayOfWeek === 0) {
+        continue;
+      }
 
-    const start =
-      event.start?.dateTime;
+      // Saturday
+      if (dayOfWeek === 6) {
+        hours = HOURS_SATURDAY;
+      }
 
-    if (!start) return;
+      // Monday-Friday
+      if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+        hours = HOURS_WEEKDAY;
+      }
 
-    const key = new Date(start)
-      .toLocaleString("en-US", {
-        timeZone: "Pacific/Honolulu",
-      });
+      for (const hour of hours) {
 
-    slotCounts[key] =
-      (slotCounts[key] || 0) + 1;
-  });
+        const slot = new Date(day);
 
-  const availableSlots: string[] = [];
+        slot.setHours(
+          hour,
+          0,
+          0,
+          0
+        );
 
-  for (let d = 1; d <= 7; d++) {
+        const response =
+          await fetch(
+            `${process.env.NEXT_PUBLIC_SITE_URL}/api/check-capacity`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              body: JSON.stringify({
+                startTime:
+                  slot.toISOString(),
+                serviceType:
+                  "Acupuncture",
+              }),
+            }
+          );
 
-    const day = new Date();
-    day.setDate(day.getDate() + d);
+        const result =
+          await response.json();
 
-    const dayOfWeek = day.getDay();
+        if (
+          result.available
+        ) {
 
-    let hours: number[] = [];
-
-    // Sunday
-    if (dayOfWeek === 0) {
-      continue;
-    }
-
-    // Saturday
-    if (dayOfWeek === 6) {
-      hours = [9, 10, 11];
-    }
-
-    // Monday-Friday
-    if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-      hours = [9, 10, 11, 12];
-    }
-
-    for (const hour of hours) {
-
-      const slot = new Date(day);
-
-      slot.setHours(hour, 0, 0, 0);
-
-      const key = slot.toLocaleString(
-        "en-US",
-        {
-          timeZone: "Pacific/Honolulu",
+          availableSlots.push(
+            slot.toLocaleString(
+              "en-US",
+              {
+                timeZone:
+                  "Pacific/Honolulu",
+                weekday:
+                  "long",
+                month:
+                  "numeric",
+                day:
+                  "numeric",
+                hour:
+                  "numeric",
+                minute:
+                  "2-digit",
+              }
+            )
+          );
         }
-      );
 
-      const count =
-        slotCounts[key] || 0;
+        if (
+          availableSlots.length >= 3
+        ) {
+          break;
+        }
+      }
 
-      if (count < 3) {
-        availableSlots.push(key);
+      if (
+        availableSlots.length >= 3
+      ) {
+        break;
       }
     }
-  }
 
-  const option1 = availableSlots[0];
+    return NextResponse.json({
+      slots:
+        availableSlots,
+    });
 
-const firstDateObj =
-  new Date(option1);
+  } catch (err: any) {
 
-const firstHour =
-  firstDateObj.getHours();
-
-const option2 =
-  availableSlots.find(slot => {
-
-    const slotDate =
-      new Date(slot);
-
-    const diffDays =
-      Math.floor(
-        (
-          slotDate.getTime() -
-          firstDateObj.getTime()
-        ) /
-        (1000 * 60 * 60 * 24)
-      );
-
-    return (
-      diffDays >= 2 &&
-      slotDate.getHours() !== firstHour
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          err.message,
+      },
+      {
+        status: 500,
+      }
     );
-  });
-
-  return NextResponse.json({
-    slots: [
-      option1,
-      option2,
-    ].filter(Boolean),
-  });
+  }
 }
