@@ -298,17 +298,65 @@ Reply with the time that works best.
     rescheduleResult,
   });
 
-}
-    
-    else {
+} else if (
+  bookingResult.intent ===
+  "CANCEL_APPOINTMENT"
+) {
 
-      results.push({
-        id: smsId,
-        phone,
-        message,
-        bookingResult,
-      });
-    }
+  const cancelResponse =
+    await fetch(
+      `${process.env.NEXT_PUBLIC_SITE_URL}/api/cancel-appointment`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          phone,
+        }),
+      }
+    );
+
+  const cancelResult =
+    await cancelResponse.json();
+
+  if (
+    cancelResult.success
+  ) {
+
+    const confirmation =
+      "Your appointment has been cancelled. Thank you.";
+
+    await sendSMS(
+      phone,
+      confirmation
+    );
+
+    await saveConversation(
+      phone,
+      "assistant",
+      confirmation
+    );
+  }
+
+  results.push({
+    id: smsId,
+    phone,
+    message,
+    bookingResult,
+    cancelResult,
+  });
+
+} else {
+
+  results.push({
+    id: smsId,
+    phone,
+    message,
+    bookingResult,
+  });
+}
 
     processed++;
   }
