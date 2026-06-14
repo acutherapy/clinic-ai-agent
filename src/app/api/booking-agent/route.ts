@@ -85,11 +85,49 @@ then return:
   "time":"11:00 AM"
 }
 
+If a patient says:
+
+Move my appointment to Monday 11am
+
+Return:
+
+{
+  "intent":"RESCHEDULE_APPOINTMENT",
+  "day":"Monday",
+  "time":"11:00 AM"
+}
+
+If a patient says:
+
+Can I move it to Friday 10am
+
+Return:
+
+{
+  "intent":"RESCHEDULE_APPOINTMENT",
+  "day":"Friday",
+  "time":"10:00 AM"
+}
+
+If a patient says:
+
+Need to reschedule to Monday
+
+Return:
+
+{
+  "intent":"RESCHEDULE_APPOINTMENT",
+  "day":"Monday"
+}
+
 Return ONLY a JSON object.
 
 Possible intents:
 
+Possible intents:
+
 BOOK_APPOINTMENT
+RESCHEDULE_APPOINTMENT
 CALL_REQUEST
 ARRIVING
 QUESTION

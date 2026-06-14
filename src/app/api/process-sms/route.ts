@@ -191,7 +191,116 @@ Reply with the time that works best.
         createResult,
       });
 
-    } else {
+      } else if (
+  bookingResult.intent ===
+  "RESCHEDULE_APPOINTMENT"
+) {
+
+  const nextDate =
+    new Date();
+
+  const dayMap: Record<string, number> = {
+    Sunday: 0,
+    Monday: 1,
+    Tuesday: 2,
+    Wednesday: 3,
+    Thursday: 4,
+    Friday: 5,
+    Saturday: 6,
+  };
+
+  const targetDay =
+    dayMap[
+      bookingResult.day
+    ];
+
+  while (
+    nextDate.getDay() !==
+    targetDay
+  ) {
+    nextDate.setDate(
+      nextDate.getDate() + 1
+    );
+  }
+
+  const hour =
+    parseInt(
+      bookingResult.time
+    );
+
+  nextDate.setHours(
+    hour,
+    0,
+    0,
+    0
+  );
+
+  const rescheduleResponse =
+    await fetch(
+      `${process.env.NEXT_PUBLIC_SITE_URL}/api/reschedule-appointment`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          phone,
+          startTime:
+            nextDate.toISOString(),
+        }),
+      }
+    );
+
+  const rescheduleResult =
+    await rescheduleResponse.json();
+
+  if (
+    rescheduleResult.success
+  ) {
+
+    const confirmation =
+      `Your appointment has been rescheduled to ${bookingResult.day} at ${bookingResult.time}. Thank you!`;
+
+    await sendSMS(
+      phone,
+      confirmation
+    );
+
+    await saveConversation(
+      phone,
+      "assistant",
+      confirmation
+    );
+
+  } else {
+
+    const failedMessage =
+      `Sorry, that appointment time is not available. Please choose another time.`;
+
+    await sendSMS(
+      phone,
+      failedMessage
+    );
+
+    await saveConversation(
+      phone,
+      "assistant",
+      failedMessage
+    );
+  }
+
+  results.push({
+    id: smsId,
+    phone,
+    message,
+    bookingResult,
+    rescheduleResult,
+  });
+
+}
+    
+    else {
 
       results.push({
         id: smsId,
