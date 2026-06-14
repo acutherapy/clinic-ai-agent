@@ -1,23 +1,21 @@
 import { NextResponse } from "next/server";
 import { calendar } from "@/lib/google";
 
+const CALENDAR_ID =
+  "46d7671d8624d3f9f0c685943921309a7d1801a2ae584906b21ea114282206ff@group.calendar.google.com";
+
 export async function GET() {
 
-  const result =
-    await calendar.events.list({
+  const event =
+    await calendar.events.get({
       calendarId:
-        "84okuq4catkgth1s7p2fcdb831n5pj1e@import.calendar.google.com",
+        CALENDAR_ID,
 
-      maxResults: 50,
-
-      singleEvents: true,
-
-      orderBy: "startTime",
-
-      timeMin: new Date().toISOString(),
+      eventId:
+        "jqmo7dlbcafs5493k6l89u9gnc",
     });
 
   return NextResponse.json(
-    result.data.items
+    event.data
   );
 }

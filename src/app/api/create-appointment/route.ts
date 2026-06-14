@@ -73,16 +73,21 @@ export async function POST(
       });
 
     const localTime =
-      start.toLocaleString(
-        "en-US",
-        {
-          timeZone:
-            "Pacific/Honolulu",
-        }
-      );
+  start.toLocaleString(
+    "en-US",
+    {
+      timeZone:
+        "Pacific/Honolulu",
+    }
+  );
 
-    await sendSMS(
-      DR_CAI_PHONE,
+console.log(
+  "SENDING DR CAI SMS TO:",
+  DR_CAI_PHONE
+);
+
+await sendSMS(
+  DR_CAI_PHONE,
 `
 NEW BOOKING
 
@@ -98,7 +103,11 @@ ${localTime}
 Phone:
 ${phone}
 `
-    );
+);
+
+console.log(
+  "DR CAI SMS SENT"
+);
 
     return NextResponse.json({
       success: true,

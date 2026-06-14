@@ -93,6 +93,58 @@ export async function GET() {
     const bookingResult =
       await bookingResponse.json();
 
+if (
+  bookingResult.intent ===
+  "CHECK_AVAILABILITY"
+) {
+
+  const slotsResponse =
+    await fetch(
+      `${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots?day=${bookingResult.day}`
+    );
+
+  const slotsResult =
+    await slotsResponse.json();
+
+  const slots =
+    slotsResult.slots || [];
+
+  const replyMessage =
+`
+Available times for ${bookingResult.day}:
+
+${slots.map(
+(slot: string) =>
+`• ${slot}`
+).join("\n")}
+
+Reply with the time that works best.
+`;
+
+  await sendSMS(
+    phone,
+    replyMessage
+  );
+
+  await saveConversation(
+    phone,
+    "assistant",
+    replyMessage
+  );
+
+  results.push({
+    id: smsId,
+    phone,
+    message,
+    bookingResult,
+    slots,
+  });
+
+  processed++;
+
+  continue;
+}
+
     if (
       bookingResult.intent ===
       "BOOK_APPOINTMENT"
@@ -191,7 +243,9 @@ Reply with the time that works best.
         createResult,
       });
 
-      } else if (
+      }
+      
+      else if (
   bookingResult.intent ===
   "RESCHEDULE_APPOINTMENT"
 ) {
@@ -273,22 +327,63 @@ Reply with the time that works best.
       confirmation
     );
 
-  } else {
+ } else if (
+  rescheduleResult.reason ===
+  "FULL"
+) {
 
-    const failedMessage =
-      `Sorry, that appointment time is not available. Please choose another time.`;
-
-    await sendSMS(
-      phone,
-      failedMessage
+  const slotsResponse =
+    await fetch(
+      `${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots`
     );
 
-    await saveConversation(
-      phone,
-      "assistant",
-      failedMessage
-    );
-  }
+  const slotsResult =
+    await slotsResponse.json();
+
+  const slots =
+    slotsResult.slots || [];
+
+  const fullMessage =
+`
+Sorry, that appointment time is no longer available.
+
+I currently have:
+
+${slots.map(
+(slot: string) =>
+`• ${slot}`
+).join("\n")}
+
+Would either of these work?
+`;
+
+  await sendSMS(
+    phone,
+    fullMessage
+  );
+
+  await saveConversation(
+    phone,
+    "assistant",
+    fullMessage
+  );
+
+} else {
+
+  const failedMessage =
+    `Sorry, something went wrong. Please try again.`;
+
+  await sendSMS(
+    phone,
+    failedMessage
+  );
+
+  await saveConversation(
+    phone,
+    "assistant",
+    failedMessage
+  );
+}
 
   results.push({
     id: smsId,

@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { calendar } from "@/lib/google";
 import { supabase } from "@/lib/supabase";
+import { sendSMS } from "@/lib/ringcentral";
 
 const CALENDAR_ID =
   "46d7671d8624d3f9f0c685943921309a7d1801a2ae584906b21ea114282206ff@group.calendar.google.com";
+
+const DR_CAI_PHONE =
+  "+18083083879";
 
 export async function POST(
   req: NextRequest
@@ -37,6 +41,9 @@ export async function POST(
         "Appointment not found"
       );
     }
+
+    const oldTime =
+      lastAppointment.appointment_time;
 
     const capacityResponse =
       await fetch(
@@ -105,6 +112,72 @@ export async function POST(
       },
     });
 
+    await supabase
+      .from(
+        "appointment_changes"
+      )
+      .insert({
+        phone,
+        action:
+          "RESCHEDULE",
+        old_time:
+          oldTime,
+        new_time:
+          start.toISOString(),
+      });
+
+    await supabase
+      .from(
+        "appointment_history"
+      )
+      .update({
+        appointment_time:
+          start.toISOString(),
+      })
+      .eq(
+        "calendar_event_id",
+        lastAppointment.calendar_event_id
+      );
+
+    const oldLocalTime =
+      new Date(
+        oldTime
+      ).toLocaleString(
+        "en-US",
+        {
+          timeZone:
+            "Pacific/Honolulu",
+        }
+      );
+
+    const newLocalTime =
+      start.toLocaleString(
+        "en-US",
+        {
+          timeZone:
+            "Pacific/Honolulu",
+        }
+      );
+
+    await sendSMS(
+      DR_CAI_PHONE,
+`
+RESCHEDULED
+
+Patient:
+${lastAppointment.patient_name}
+
+Phone:
+${phone}
+
+FROM:
+${oldLocalTime}
+
+TO:
+${newLocalTime}
+`
+    );
+
     return NextResponse.json({
       success: true,
       eventId:
@@ -123,5 +196,6 @@ export async function POST(
         status: 500,
       }
     );
+
   }
 }
