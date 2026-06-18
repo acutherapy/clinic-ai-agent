@@ -94,57 +94,89 @@ export async function GET() {
       await bookingResponse.json();
 
 if (
-  bookingResult.intent ===
-  "CHECK_AVAILABILITY"
+bookingResult.intent ===
+"CHECK_AVAILABILITY"
 ) {
 
-  const slotsResponse =
-    await fetch(
-      `${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots?day=${bookingResult.day}`
-    );
+const slotsResponse =
+await fetch(
+`${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots?day=${bookingResult.day}`
+);
 
-  const slotsResult =
-    await slotsResponse.json();
+const slotsResult =
+await slotsResponse.json();
 
-  const slots =
-    slotsResult.slots || [];
+const slots =
+slotsResult.slots || [];
 
-  const replyMessage =
-`
-Available times for ${bookingResult.day}:
+const replyMessage =
+`Available times for ${bookingResult.day}:
 
 ${slots.map(
 (slot: string) =>
 `• ${slot}`
 ).join("\n")}
 
-Reply with the time that works best.
-`;
+Reply with the time that works best.`;
 
-  await sendSMS(
-    phone,
-    replyMessage
-  );
+await sendSMS(
+phone,
+replyMessage
+);
 
-  await saveConversation(
-    phone,
-    "assistant",
-    replyMessage
-  );
+await saveConversation(
+phone,
+"assistant",
+replyMessage
+);
 
-  results.push({
-    id: smsId,
-    phone,
-    message,
-    bookingResult,
-    slots,
-  });
+results.push({
+id: smsId,
+phone,
+message,
+bookingResult,
+slots,
+});
 
-  processed++;
+processed++;
 
-  continue;
+continue;
 }
 
+if (
+bookingResult.intent ===
+"TRANSFER_TO_HUMAN"
+) {
+
+const transferMessage =
+`Thank you for contacting AcuTherapy Clinics.
+
+Your question would be best handled by our office staff.
+
+Please call 808-528-7177.`;
+
+await sendSMS(
+phone,
+transferMessage
+);
+
+await saveConversation(
+phone,
+"assistant",
+transferMessage
+);
+
+results.push({
+id: smsId,
+phone,
+message,
+bookingResult,
+});
+
+processed++;
+
+continue;
+}
     if (
   bookingResult.intent ===
   "BOOK_APPOINTMENT"
