@@ -146,9 +146,22 @@ Reply with the time that works best.
 }
 
     if (
-      bookingResult.intent ===
-      "BOOK_APPOINTMENT"
-    ) {
+  bookingResult.intent ===
+  "BOOK_APPOINTMENT"
+) {
+
+  if (
+    !bookingResult.day ||
+    !bookingResult.time
+  ) {
+
+    await sendSMS(
+      phone,
+      "Please specify both a day and time."
+    );
+
+    continue;
+  }
 
       const createResponse =
         await fetch(
