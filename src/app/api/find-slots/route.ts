@@ -90,7 +90,7 @@ export async function GET(
           new Date(day);
 
         slot.setHours(
-          hour,
+          hour + 10,
           0,
           0,
           0
