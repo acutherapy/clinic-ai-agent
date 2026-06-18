@@ -30,6 +30,11 @@ export async function GET(
     const requestedDay =
       searchParams.get("day");
 
+      console.log(
+  "REQUESTED DAY:",
+  requestedDay
+);
+
     const candidates: Candidate[] =
       [];
 
@@ -156,7 +161,14 @@ export async function GET(
 
     if (
       candidates.length === 0
-    ) {
+    ) 
+    
+    console.log(
+  "CANDIDATES FOUND:",
+  candidates.length
+);
+
+    {
       return NextResponse.json({
         slots: [],
       });
