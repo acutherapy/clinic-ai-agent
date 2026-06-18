@@ -30,10 +30,10 @@ export async function GET(
     const requestedDay =
       searchParams.get("day");
 
-      console.log(
-  "REQUESTED DAY:",
-  requestedDay
-);
+    console.log(
+      "REQUESTED DAY:",
+      requestedDay
+    );
 
     const candidates: Candidate[] =
       [];
@@ -89,6 +89,7 @@ export async function GET(
         const slot =
           new Date(day);
 
+        // Honolulu UTC-10
         slot.setHours(
           hour + 10,
           0,
@@ -121,13 +122,9 @@ export async function GET(
         const result =
           await response.json();
 
-        console.log(
-  "SLOT",
-  slot.toISOString(),
-  result
-);
-
-if (result.available) {
+        if (
+          result.available
+        ) {
           candidates.push({
             text:
               slot.toLocaleString(
@@ -162,14 +159,15 @@ if (result.available) {
         }
       }
     }
-    
+
     console.log(
-  "CANDIDATES FOUND:",
-  candidates.length
-);
-if (
-  candidates.length === 0
-) {
+      "CANDIDATES FOUND:",
+      candidates.length
+    );
+
+    if (
+      candidates.length === 0
+    ) {
       return NextResponse.json({
         slots: [],
       });
@@ -180,19 +178,22 @@ if (
       Example:
       /api/find-slots?day=Friday
     */
-console.log(
-  "TOTAL CANDIDATES:",
-  candidates.length
-);
 
-console.log(
-  "REQUESTED DAY:",
-  requestedDay
-);
     if (
       requestedDay
     ) {
-      candidates.sort(
+      const firstDate =
+        candidates[0]
+          ?.dateKey;
+
+      const sameDay =
+        candidates.filter(
+          (c) =>
+            c.dateKey ===
+            firstDate
+        );
+
+      sameDay.sort(
         (a, b) =>
           a.currentCount -
           b.currentCount
@@ -200,14 +201,12 @@ console.log(
 
       return NextResponse.json({
         slots:
-          candidates
-            .slice(0, 4)
-            .map(
-              (
-                slot
-              ) =>
-                slot.text
-            ),
+          sameDay.map(
+            (
+              slot
+            ) =>
+              slot.text
+          ),
       });
     }
 
@@ -323,21 +322,23 @@ console.log(
       );
 
       const differentHour =
-  daySlots.find(
-    (slot) =>
-      slot.hour !==
-      firstSlot.hour
-  );
+        daySlots.find(
+          (
+            slot
+          ) =>
+            slot.hour !==
+            firstSlot.hour
+        );
 
-if (
-  differentHour
-) {
-  selected.push(
-    differentHour!
-  );
+      if (
+        differentHour
+      ) {
+        selected.push(
+          differentHour
+        );
 
-  break;
-}
+        break;
+      }
     }
 
     return NextResponse.json({

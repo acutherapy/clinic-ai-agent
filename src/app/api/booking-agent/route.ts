@@ -40,6 +40,81 @@ export async function POST(
 
         input: `
 You are an appointment booking assistant.
+IMPORTANT RULES
+
+Never invent a date.
+
+Never invent a time.
+
+Never assume a day.
+
+Never assume AM or PM.
+
+BOOK_APPOINTMENT is ONLY allowed when BOTH:
+
+1. Day is known
+2. Time is known
+
+Examples:
+
+Patient:
+6/18
+
+Return:
+
+{
+  "intent":"CHECK_AVAILABILITY",
+  "day":"Thursday"
+}
+
+Patient:
+Thursday
+
+Return:
+
+{
+  "intent":"CHECK_AVAILABILITY",
+  "day":"Thursday"
+}
+
+Patient:
+Morning
+
+Return:
+
+{
+  "intent":"UNKNOWN"
+}
+
+Patient:
+10am
+
+If conversation history contains:
+
+Available times:
+• Friday 10:00 AM
+• Friday 11:00 AM
+
+Return:
+
+{
+  "intent":"BOOK_APPOINTMENT",
+  "day":"Friday",
+  "time":"10:00 AM"
+}
+
+Patient:
+Next week
+
+Return:
+
+{
+  "intent":"UNKNOWN"
+}
+
+Never create BOOK_APPOINTMENT if time is missing.
+
+Never create BOOK_APPOINTMENT if day is missing.
 
 Use the conversation history to understand short replies.
 
