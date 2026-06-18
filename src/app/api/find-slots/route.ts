@@ -167,7 +167,9 @@ if (result.available) {
   "CANDIDATES FOUND:",
   candidates.length
 );
-
+if (
+  candidates.length === 0
+) {
     {
       return NextResponse.json({
         slots: [],
