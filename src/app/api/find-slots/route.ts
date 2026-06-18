@@ -17,6 +17,7 @@ type Candidate = {
   text: string;
   currentCount: number;
   dateKey: string;
+  hour: number;
 };
 
 export async function GET(
@@ -72,18 +73,10 @@ export async function GET(
         continue;
       }
 
-      let hours:
-        number[] = [];
-
-      if (
+      const hours =
         dayOfWeek === 6
-      ) {
-        hours =
-          HOURS_SATURDAY;
-      } else {
-        hours =
-          HOURS_WEEKDAY;
-      }
+          ? HOURS_SATURDAY
+          : HOURS_WEEKDAY;
 
       for (
         const hour of hours
@@ -154,6 +147,8 @@ export async function GET(
               slot
                 .toISOString()
                 .split("T")[0],
+
+            hour,
           });
         }
       }
@@ -205,10 +200,62 @@ export async function GET(
     const selected:
       Candidate[] = [];
 
+    const firstDate =
+      sortedDates[0];
+
+    const firstDaySlots =
+      grouped.get(
+        firstDate
+      )!;
+
+    firstDaySlots.sort(
+      (a, b) =>
+        a.currentCount -
+        b.currentCount
+    );
+
+    const firstSlot =
+      firstDaySlots[0];
+
+    selected.push(
+      firstSlot
+    );
+
+    const firstDateObj =
+      new Date(
+        firstSlot.dateKey
+      );
+
     for (
-      const dateKey of
-      sortedDates
+      let i = 1;
+      i <
+      sortedDates.length;
+      i++
     ) {
+      const dateKey =
+        sortedDates[i];
+
+      const currentDate =
+        new Date(dateKey);
+
+      const daysApart =
+        Math.floor(
+          (
+            currentDate.getTime() -
+            firstDateObj.getTime()
+          ) /
+            (1000 *
+              60 *
+              60 *
+              24)
+        );
+
+      if (
+        daysApart < 2
+      ) {
+        continue;
+      }
+
       const daySlots =
         grouped.get(
           dateKey
@@ -220,26 +267,19 @@ export async function GET(
           b.currentCount
       );
 
-      for (
-        const slot of
-        daySlots
-      ) {
-        selected.push(
-          slot
+      const differentHour =
+        daySlots.find(
+          (slot) =>
+            slot.hour !==
+            firstSlot.hour
         );
 
-        if (
-          selected.length >=
-          2
-        ) {
-          break;
-        }
-      }
-
       if (
-        selected.length >=
-        2
+        differentHour
       ) {
+        selected.push(
+          differentHour
+        );
         break;
       }
     }
