@@ -121,9 +121,13 @@ export async function GET(
         const result =
           await response.json();
 
-        if (
-          result.available
-        ) {
+        console.log(
+  "SLOT",
+  slot.toISOString(),
+  result
+);
+
+if (result.available) {
           candidates.push({
             text:
               slot.toLocaleString(
@@ -175,7 +179,15 @@ export async function GET(
       Example:
       /api/find-slots?day=Friday
     */
+console.log(
+  "TOTAL CANDIDATES:",
+  candidates.length
+);
 
+console.log(
+  "REQUESTED DAY:",
+  requestedDay
+);
     if (
       requestedDay
     ) {
