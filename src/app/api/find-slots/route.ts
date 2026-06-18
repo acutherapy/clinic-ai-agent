@@ -30,8 +30,8 @@ export async function GET(
     const requestedDay =
       searchParams.get("day");
 
-    const candidates:
-      Candidate[] = [];
+    const candidates: Candidate[] =
+      [];
 
     const now =
       new Date();
@@ -162,6 +162,40 @@ export async function GET(
       });
     }
 
+    /*
+      DAY QUERY MODE
+      Example:
+      /api/find-slots?day=Friday
+    */
+
+    if (
+      requestedDay
+    ) {
+      candidates.sort(
+        (a, b) =>
+          a.currentCount -
+          b.currentCount
+      );
+
+      return NextResponse.json({
+        slots:
+          candidates
+            .slice(0, 4)
+            .map(
+              (
+                slot
+              ) =>
+                slot.text
+            ),
+      });
+    }
+
+    /*
+      GENERAL MODE
+      Example:
+      /api/find-slots
+    */
+
     const grouped =
       new Map<
         string,
@@ -280,6 +314,7 @@ export async function GET(
         selected.push(
           differentHour
         );
+
         break;
       }
     }
