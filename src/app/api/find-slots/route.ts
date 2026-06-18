@@ -158,10 +158,6 @@ export async function GET(
         }
       }
     }
-
-    if (
-      candidates.length === 0
-    ) 
     
     console.log(
   "CANDIDATES FOUND:",
@@ -314,21 +310,21 @@ export async function GET(
       );
 
       const differentHour =
-        daySlots.find(
-          (slot) =>
-            slot.hour !==
-            firstSlot.hour
-        );
+  daySlots.find(
+    (slot) =>
+      slot.hour !==
+      firstSlot.hour
+  );
 
-      if (
-        differentHour
-      ) {
-        selected.push(
-          differentHour
-        );
+if (
+  differentHour
+) {
+  selected.push(
+    differentHour!
+  );
 
-        break;
-      }
+  break;
+}
     }
 
     return NextResponse.json({
