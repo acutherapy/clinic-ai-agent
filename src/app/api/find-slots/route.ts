@@ -98,7 +98,7 @@ export async function GET(
 
         const response =
           await fetch(
-            `${process.env.NEXT_PUBLIC_SITE_URL}/api/check-capacity`,
+            `${req.nextUrl.origin}/api/check-capacity`,
             {
               method:
                 "POST",
