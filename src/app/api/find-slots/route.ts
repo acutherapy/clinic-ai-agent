@@ -170,7 +170,6 @@ if (result.available) {
 if (
   candidates.length === 0
 ) {
-    {
       return NextResponse.json({
         slots: [],
       });
