@@ -1,68 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sendSMS } from "@/lib/ringcentral";
+import {
+  sendSMS,
+  getMessage,
+} from "@/lib/ringcentral";
 import { saveConversation } from "@/lib/conversation";
 
-export async function GET() {
-return NextResponse.json({
-success: true,
-message: "sms webhook alive",
-});
-}
-
 export async function POST(
-  req: NextRequest
+req: NextRequest
 ) {
-  try {
-
-    const validationToken =
-      req.headers.get(
-        "Validation-Token"
-      );
-
-    if (
-      validationToken
-    ) {
-
-      console.log(
-        "RINGCENTRAL VALIDATION"
-      );
-
-      return new NextResponse(
-        "",
-        {
-          status: 200,
-          headers: {
-            "Validation-Token":
-              validationToken,
-          },
-        }
-      );
-    }
-
-    let body: any = {};
-
-    try {
-      body =
-        await req.json();
-
-console.log(
-  "========== FULL BODY =========="
-);
-
-console.log(
-  JSON.stringify(
-    body,
-    null,
-    2
-  )
-);
-
-    } catch {
-
-      return NextResponse.json({
-        success: true,
-      });
-    }
+try {
+const body =
+await req.json();
 
 console.log(
   "========== INCOMING SMS =========="
@@ -76,23 +24,47 @@ console.log(
   )
 );
 
-const phone =
-  body.from?.phoneNumber ||
-  body.from ||
-  "";
+const messageId =
+  body?.body?.changes?.[0]
+    ?.newMessageIds?.[0];
 
-const message =
-  body.subject ||
-  body.text ||
-  body.body ||
-  "";
-
-if (!phone || !message) {
+if (!messageId) {
   return NextResponse.json({
     success: true,
     skipped: true,
   });
 }
+
+console.log(
+  "MESSAGE ID:",
+  messageId
+);
+
+const sms =
+  await getMessage(
+    String(messageId)
+  );
+
+console.log(
+  "FULL SMS:"
+);
+
+console.log(
+  JSON.stringify(
+    sms,
+    null,
+    2
+  )
+);
+
+const phone =
+  sms.from?.phoneNumber ||
+  "";
+
+const message =
+  sms.subject ||
+  sms.text ||
+  "";
 
 await saveConversation(
   phone,

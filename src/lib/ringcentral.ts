@@ -57,3 +57,18 @@ export async function sendSMS(
 
   return await resp.json();
 }
+export async function getMessage(
+  messageId: string
+) {
+  await platform.login({
+    jwt:
+      process.env.RINGCENTRAL_JWT!,
+  });
+
+  const resp =
+    await platform.get(
+      `/restapi/v1.0/account/~/extension/~/message-store/${messageId}`
+    );
+
+  return await resp.json();
+}
