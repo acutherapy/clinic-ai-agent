@@ -10,11 +10,23 @@ message: "sms webhook alive",
 }
 
 export async function POST(
-req: NextRequest
+  req: NextRequest
 ) {
-try {
-const body =
-await req.json();
+  try {
+
+    let body: any = {};
+
+    try {
+      body = await req.json();
+    } catch {
+      console.log(
+        "RINGCENTRAL WEBHOOK VERIFICATION"
+      );
+
+      return NextResponse.json({
+        success: true,
+      });
+    }
 
 console.log(
   "========== INCOMING SMS =========="
