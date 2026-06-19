@@ -18,22 +18,17 @@ type Candidate = {
   currentCount: number;
   dateKey: string;
   hour: number;
+  startTime: string;
 };
 
 export async function GET(
   req: NextRequest
 ) {
   try {
-    const searchParams =
-      req.nextUrl.searchParams;
-
     const requestedDay =
-      searchParams.get("day");
-
-    console.log(
-      "REQUESTED DAY:",
-      requestedDay
-    );
+      req.nextUrl.searchParams.get(
+        "day"
+      );
 
     const candidates: Candidate[] =
       [];
@@ -86,16 +81,34 @@ export async function GET(
       for (
         const hour of hours
       ) {
-        const slot =
-          new Date(day);
 
-        // Honolulu UTC-10
-        slot.setHours(
-          hour ,
-          0,
-          0,
-          0
-        );
+        const yyyy =
+          day.getFullYear();
+
+        const mm =
+          String(
+            day.getMonth() + 1
+          ).padStart(
+            2,
+            "0"
+          );
+
+        const dd =
+          String(
+            day.getDate()
+          ).padStart(
+            2,
+            "0"
+          );
+
+        const hh =
+          String(hour).padStart(
+            2,
+            "0"
+          );
+
+        const startTime =
+          `${yyyy}-${mm}-${dd}T${hh}:00:00-10:00`;
 
         const response =
           await fetch(
@@ -110,8 +123,7 @@ export async function GET(
               body:
                 JSON.stringify(
                   {
-                    startTime:
-                      slot.toISOString(),
+                    startTime,
                     serviceType:
                       "Acupuncture",
                   }
@@ -125,45 +137,42 @@ export async function GET(
         if (
           result.available
         ) {
+
+          const display =
+            new Date(
+              startTime
+            ).toLocaleString(
+              "en-US",
+              {
+                timeZone:
+                  "Pacific/Honolulu",
+                weekday:
+                  "long",
+                month:
+                  "numeric",
+                day:
+                  "numeric",
+                hour:
+                  "numeric",
+                minute:
+                  "2-digit",
+              }
+            );
+
           candidates.push({
             text:
-              slot.toLocaleString(
-                "en-US",
-                {
-                  timeZone:
-                    "Pacific/Honolulu",
-                  weekday:
-                    "long",
-                  month:
-                    "numeric",
-                  day:
-                    "numeric",
-                  hour:
-                    "numeric",
-                  minute:
-                    "2-digit",
-                }
-              ),
-
+              display,
             currentCount:
               result.currentCount ||
               0,
-
             dateKey:
-              slot
-                .toISOString()
-                .split("T")[0],
-
+              `${yyyy}-${mm}-${dd}`,
             hour,
+            startTime,
           });
         }
       }
     }
-
-    console.log(
-      "CANDIDATES FOUND:",
-      candidates.length
-    );
 
     if (
       candidates.length === 0
@@ -173,18 +182,13 @@ export async function GET(
       });
     }
 
-    /*
-      DAY QUERY MODE
-      Example:
-      /api/find-slots?day=Friday
-    */
-
     if (
       requestedDay
     ) {
+
       const firstDate =
         candidates[0]
-          ?.dateKey;
+          .dateKey;
 
       const sameDay =
         candidates.filter(
@@ -195,26 +199,18 @@ export async function GET(
 
       sameDay.sort(
         (a, b) =>
-          a.currentCount -
-          b.currentCount
+          a.hour -
+          b.hour
       );
 
       return NextResponse.json({
         slots:
           sameDay.map(
-            (
-              slot
-            ) =>
-              slot.text
+            (s) =>
+              s.text
           ),
       });
     }
-
-    /*
-      GENERAL MODE
-      Example:
-      /api/find-slots
-    */
 
     const grouped =
       new Map<
@@ -264,21 +260,13 @@ export async function GET(
 
     firstDaySlots.sort(
       (a, b) =>
-        a.currentCount -
-        b.currentCount
+        a.hour -
+        b.hour
     );
-
-    const firstSlot =
-      firstDaySlots[0];
 
     selected.push(
-      firstSlot
+      firstDaySlots[0]
     );
-
-    const firstDateObj =
-      new Date(
-        firstSlot.dateKey
-      );
 
     for (
       let i = 1;
@@ -286,57 +274,28 @@ export async function GET(
       sortedDates.length;
       i++
     ) {
-      const dateKey =
-        sortedDates[i];
 
-      const currentDate =
-        new Date(dateKey);
-
-      const daysApart =
-        Math.floor(
-          (
-            currentDate.getTime() -
-            firstDateObj.getTime()
-          ) /
-            (1000 *
-              60 *
-              60 *
-              24)
-        );
-
-      if (
-        daysApart < 2
-      ) {
-        continue;
-      }
-
-      const daySlots =
+      const slots =
         grouped.get(
-          dateKey
+          sortedDates[i]
         )!;
 
-      daySlots.sort(
-        (a, b) =>
-          a.currentCount -
-          b.currentCount
-      );
-
-      const differentHour =
-        daySlots.find(
+      const different =
+        slots.find(
           (
             slot
           ) =>
             slot.hour !==
-            firstSlot.hour
+            selected[0]
+              .hour
         );
 
       if (
-        differentHour
+        different
       ) {
         selected.push(
-          differentHour
+          different
         );
-
         break;
       }
     }
@@ -344,13 +303,15 @@ export async function GET(
     return NextResponse.json({
       slots:
         selected.map(
-          (slot) =>
-            slot.text
+          (s) =>
+            s.text
         ),
     });
+
   } catch (
     err: any
   ) {
+
     return NextResponse.json(
       {
         success: false,
