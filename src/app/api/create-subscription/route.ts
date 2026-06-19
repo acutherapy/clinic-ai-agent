@@ -16,18 +16,18 @@ export async function GET() {
     });
 
     const response = await platform.post(
-      "/restapi/v1.0/subscription",
-      {
-        eventFilters: [
-          "/restapi/v1.0/account/~/extension/~/message-store"
-        ],
-        deliveryMode: {
-          transportType: "WebHook",
-          address:
-            "https://clinic-ai-agent-roan.vercel.app/api/sms-webhook"
-        }
-      }
-    );
+  "/restapi/v1.0/subscription",
+  {
+    eventFilters: [
+      "/restapi/v1.0/account/~/extension/~/message-store/instant?type=SMS"
+    ],
+    deliveryMode: {
+      transportType: "WebHook",
+      address:
+        "https://clinic-ai-agent-roan.vercel.app/api/sms-webhook"
+    }
+  }
+);
 
     const result = await response.json();
 
