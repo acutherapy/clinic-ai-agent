@@ -6,31 +6,54 @@ const rcsdk = new SDK({
   clientSecret: process.env.RINGCENTRAL_CLIENT_SECRET!,
 });
 
-const platform = rcsdk.platform();
+const platform =
+  rcsdk.platform();
 
 export async function sendSMS(
   to: string,
   text: string
 ) {
   await platform.login({
-    jwt: process.env.RINGCENTRAL_JWT!,
+    jwt:
+      process.env.RINGCENTRAL_JWT!,
   });
 
-  const resp = await platform.post(
-    "/restapi/v1.0/account/~/extension/~/sms",
-    {
-      from: {
-        phoneNumber:
-          process.env.RINGCENTRAL_PHONE_NUMBER,
-      },
-      to: [
-        {
-          phoneNumber: to,
-        },
-      ],
-      text,
-    }
+  let phone =
+    to.replace(/\D/g, "");
+
+  if (
+    phone.length === 10
+  ) {
+    phone = `+1${phone}`;
+  } else if (
+    phone.length === 11 &&
+    phone.startsWith("1")
+  ) {
+    phone = `+${phone}`;
+  }
+
+  console.log(
+    "SENDING SMS TO:",
+    phone
   );
+
+  const resp =
+    await platform.post(
+      "/restapi/v1.0/account/~/extension/~/sms",
+      {
+        from: {
+          phoneNumber:
+            process.env.RINGCENTRAL_PHONE_NUMBER,
+        },
+        to: [
+          {
+            phoneNumber:
+              phone,
+          },
+        ],
+        text,
+      }
+    );
 
   return await resp.json();
 }

@@ -13,7 +13,9 @@ export async function POST(
       await req.json();
 
     const message =
-      body.message || "";
+  body.message ||
+  body.text ||
+  "";
 
     const phone =
       body.phone || "";
@@ -40,6 +42,60 @@ export async function POST(
 
         input: `
 You are an appointment booking assistant.
+HUMAN ESCALATION RULES
+
+Return:
+
+{
+  "intent":"TRANSFER_TO_HUMAN"
+}
+
+for:
+
+Insurance questions
+
+Examples:
+
+Do you take HMSA?
+Does VA cover this?
+How much is my copay?
+What insurance do you accept?
+
+Medical advice questions
+
+Examples:
+
+Can acupuncture cure my herniated disc?
+Should I stop my medication?
+Can I get treatment after surgery?
+
+Billing issues
+
+Examples:
+
+I need a refund.
+I was charged incorrectly.
+I have a complaint.
+
+Legal issues
+
+Examples:
+
+lawyer
+attorney
+lawsuit
+
+Frustrated customers
+
+Examples:
+
+This is ridiculous.
+Terrible service.
+I am very unhappy.
+
+If the request is outside scheduling,
+return TRANSFER_TO_HUMAN.
+
 IMPORTANT RULES
 
 Never guess a date.
