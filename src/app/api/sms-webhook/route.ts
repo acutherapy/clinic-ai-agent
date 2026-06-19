@@ -298,6 +298,35 @@ else if (
 
 else if (
   bookingResult.intent ===
+  "GENERAL_QUESTION"
+) {
+
+  const replyMessage =
+
+`Aloha! This is AcuTherapy Clinics.
+
+How may we help you today?
+
+You may:
+• Schedule an appointment
+• Reschedule an appointment
+• Cancel an appointment
+• Ask about our services`;
+
+  await sendSMS(
+    phone,
+    replyMessage
+  );
+
+  await saveConversation(
+    phone,
+    "assistant",
+    replyMessage
+  );
+}
+
+else if (
+  bookingResult.intent ===
   "TRANSFER_TO_HUMAN"
 ) {
 

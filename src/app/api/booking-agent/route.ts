@@ -217,6 +217,21 @@ I need a lawyer.
 If the request is outside scheduling,
 return TRANSFER_TO_HUMAN.
 
+If the patient says:
+
+Hello
+Hi
+Hey
+Good morning
+Good afternoon
+Thank you
+Thanks
+
+Return:
+
+{
+  "intent":"GENERAL_QUESTION"
+}
 
 STRICT RULES
 
@@ -553,6 +568,7 @@ CALL_REQUEST
 TRANSFER_TO_HUMAN
 ARRIVING
 QUESTION
+GENERAL_QUESTION
 UNKNOWN
 
 Conversation History:
