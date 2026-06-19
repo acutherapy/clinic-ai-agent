@@ -18,9 +18,9 @@ export async function GET() {
     const response = await platform.post(
   "/restapi/v1.0/subscription",
   {
-    eventFilters: [
-      "/restapi/v1.0/account/~/extension/~/message-store/instant?type=SMS"
-    ],
+   eventFilters: [
+  "/restapi/v1.0/account/~/extension/~/message-store"
+],
     deliveryMode: {
       transportType: "WebHook",
       address:
