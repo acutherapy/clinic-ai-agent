@@ -91,7 +91,7 @@ export async function GET(
 
         // Honolulu UTC-10
         slot.setHours(
-          hour + 10,
+          hour ,
           0,
           0,
           0
