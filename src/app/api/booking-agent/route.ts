@@ -35,7 +35,14 @@ export async function POST(
             `${h.role.toUpperCase()}: ${h.message}`
         )
         .join("\n");
-
+console.log(
+  "OPENAI KEY PREFIX:",
+  process.env.OPENAI_API_KEY?.slice(0, 20)
+);
+console.log(
+  "OPENAI KEY LENGTH:",
+  process.env.OPENAI_API_KEY?.length
+);
     const response =
       await openai.responses.create({
         model: "gpt-4.1-mini",
