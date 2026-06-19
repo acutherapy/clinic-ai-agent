@@ -92,8 +92,15 @@ const bookingResult =
   await bookingResponse.json();
 
 console.log(
-  "BOOKING RESULT:",
-  bookingResult
+  "BOOKING RESULT:"
+);
+
+console.log(
+  JSON.stringify(
+    bookingResult,
+    null,
+    2
+  )
 );
 
 if (
