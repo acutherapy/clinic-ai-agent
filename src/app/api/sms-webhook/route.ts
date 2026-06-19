@@ -14,14 +14,37 @@ export async function POST(
 ) {
   try {
 
+    const validationToken =
+      req.headers.get(
+        "Validation-Token"
+      );
+
+    if (
+      validationToken
+    ) {
+
+      console.log(
+        "RINGCENTRAL VALIDATION"
+      );
+
+      return new NextResponse(
+        "",
+        {
+          status: 200,
+          headers: {
+            "Validation-Token":
+              validationToken,
+          },
+        }
+      );
+    }
+
     let body: any = {};
 
     try {
-      body = await req.json();
+      body =
+        await req.json();
     } catch {
-      console.log(
-        "RINGCENTRAL WEBHOOK VERIFICATION"
-      );
 
       return NextResponse.json({
         success: true,
