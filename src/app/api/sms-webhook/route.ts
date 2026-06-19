@@ -44,6 +44,19 @@ export async function POST(
     try {
       body =
         await req.json();
+
+console.log(
+  "========== FULL BODY =========="
+);
+
+console.log(
+  JSON.stringify(
+    body,
+    null,
+    2
+  )
+);
+
     } catch {
 
       return NextResponse.json({
