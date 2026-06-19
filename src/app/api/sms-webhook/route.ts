@@ -45,6 +45,16 @@ const sms =
     String(messageId)
   );
 
+  if (
+  sms.direction !==
+  "Inbound"
+) {
+  return NextResponse.json({
+    success: true,
+    skipped: true,
+  });
+}
+
 console.log(
   "FULL SMS:"
 );
