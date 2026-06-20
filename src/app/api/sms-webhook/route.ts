@@ -367,15 +367,22 @@ bookingResult.intent ===
 
 const replyMessage =
 
-`Pricing varies depending on the type of treatment and insurance coverage.
+`We accept:
 
-Please let us know:
+• Insurance Patients
+• VA Community Care
+• Workers Compensation
+• Auto Injury Claims
+• Self-Pay Patients
 
-• New or existing patient
+To provide pricing information, please let us know:
+
 • Acupuncture or massage
 • Insurance type
+• New or existing patient
 
-and we will be happy to assist you.`;
+Phone:
+808-528-7177`;
 
 await sendSMS(
 phone,
@@ -451,9 +458,14 @@ bookingResult.intent ===
 
 const replyMessage =
 
-`Please call our office at 808-528-7177.
+`A staff member will be happy to assist you.
 
-A staff member will be happy to assist you.`;
+Phone:
+808-528-7177
+
+Business Hours:
+Monday - Saturday
+9:00 AM - 1:00 PM`;
 
 await sendSMS(
 phone,
