@@ -35,6 +35,48 @@ export async function POST(
             `${h.role.toUpperCase()}: ${h.message}`
         )
         .join("\n");
+
+// KB Search First
+
+try {
+  const kbResponse = await fetch(
+  "http://localhost:3000/api/search-kb",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        question: message,
+      }),
+    }
+  );
+
+  const kbResult =
+    await kbResponse.json();
+
+  console.log(
+    "KB RESULT:",
+    kbResult
+  );
+
+  if (
+    kbResult.found === true
+  ) {
+    return NextResponse.json({
+      intent: "KB_ANSWER",
+      answer: kbResult.answer,
+      source: kbResult.source,
+    });
+  }
+
+} catch (error) {
+  console.error(
+    "KB Search Failed:",
+    error
+  );
+}
+
 console.log(
   "OPENAI KEY PREFIX:",
   process.env.OPENAI_API_KEY?.slice(0, 20)
