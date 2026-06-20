@@ -17,6 +17,12 @@ export async function POST(req: NextRequest) {
 
     const searchText = question.toLowerCase().trim();
 
+    const normalizedText =
+  searchText
+    .replace(/[.,?!]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
     // Step 1: Direct Question Match
     const { data, error } = await supabase
       .from("clinic_knowledge_base")
@@ -64,7 +70,9 @@ for (const item of data) {
 
   const matched = keywords.some(
     (keyword: string) =>
-      keyword.toLowerCase().includes(searchText)
+      normalizedText.includes(
+  keyword.toLowerCase()
+)
   );
 
   if (matched) {

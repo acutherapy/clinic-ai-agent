@@ -39,8 +39,16 @@ export async function POST(
 // KB Search First
 
 try {
-  const kbResponse = await fetch(
-  "http://localhost:3000/api/search-kb",
+  const host =
+  req.headers.get("host");
+
+const protocol =
+  host?.includes("localhost")
+    ? "http"
+    : "https";
+
+const kbResponse = await fetch(
+  `${protocol}://${host}/api/search-kb`,
     {
       method: "POST",
       headers: {
