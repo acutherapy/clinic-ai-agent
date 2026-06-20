@@ -9,14 +9,30 @@ const rcsdk = new SDK({
 const platform =
   rcsdk.platform();
 
-export async function sendSMS(
-  to: string,
-  text: string
-) {
+let isLoggedIn = false;
+
+async function ensureLogin() {
+  if (isLoggedIn) {
+    return;
+  }
+
   await platform.login({
     jwt:
       process.env.RINGCENTRAL_JWT!,
   });
+
+  isLoggedIn = true;
+
+  console.log(
+    "RINGCENTRAL LOGIN SUCCESS"
+  );
+}
+
+export async function sendSMS(
+  to: string,
+  text: string
+) {
+  await ensureLogin();
 
   let phone =
     to.replace(/\D/g, "");
@@ -24,7 +40,7 @@ export async function sendSMS(
   if (
     phone.length === 10
   ) {
-    phone = `+1${phone}`;
+   phone = `+1${phone}`;
   } else if (
     phone.length === 11 &&
     phone.startsWith("1")
@@ -53,6 +69,19 @@ export async function sendSMS(
         ],
         text,
       }
+    );
+
+  return await resp.json();
+}
+
+export async function getMessage(
+  messageId: string
+) {
+  await ensureLogin();
+
+  const resp =
+    await platform.get(
+      `/restapi/v1.0/account/~/extension/~/message-store/${messageId}`
     );
 
   return await resp.json();
