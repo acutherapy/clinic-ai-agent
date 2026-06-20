@@ -297,108 +297,201 @@ else if (
 }
 
 else if (
-  bookingResult.intent ===
-  "GENERAL_QUESTION"
+bookingResult.intent ===
+"GENERAL_QUESTION"
 ) {
 
-  const replyMessage =
+const replyMessage =
 
 `Aloha! This is AcuTherapy Clinics.
 
 How may we help you today?
 
 You may:
+
 • Schedule an appointment
 • Reschedule an appointment
 • Cancel an appointment
-• Ask about our services`;
+• Ask about our services
+• Ask about insurance
+• Ask for our locations`;
 
-  await sendSMS(
-    phone,
-    replyMessage
-  );
+await sendSMS(
+phone,
+replyMessage
+);
 
-  await saveConversation(
-    phone,
-    "assistant",
-    replyMessage
-  );
+await saveConversation(
+phone,
+"assistant",
+replyMessage
+);
 }
 
 else if (
-  bookingResult.intent ===
-  "TRANSFER_TO_HUMAN"
+bookingResult.intent ===
+"LOCATION_QUESTION"
 ) {
 
-  const replyMessage =
+const replyMessage =
+
+`AcuTherapy Clinics
+
+Honolulu:
+1650 Liliha St Suite 208
+Honolulu HI 96817
+
+Aiea:
+98-211 Pali Momi St Suite 604
+Aiea HI 96701
+
+Phone:
+808-528-7177`;
+
+await sendSMS(
+phone,
+replyMessage
+);
+
+await saveConversation(
+phone,
+"assistant",
+replyMessage
+);
+}
+
+else if (
+bookingResult.intent ===
+"PRICE_QUESTION"
+) {
+
+const replyMessage =
+
+`Pricing varies depending on the type of treatment and insurance coverage.
+
+Please let us know:
+
+• New or existing patient
+• Acupuncture or massage
+• Insurance type
+
+and we will be happy to assist you.`;
+
+await sendSMS(
+phone,
+replyMessage
+);
+
+await saveConversation(
+phone,
+"assistant",
+replyMessage
+);
+}
+
+else if (
+bookingResult.intent ===
+"INSURANCE_QUESTION"
+) {
+
+const replyMessage =
+
+`We accept many insurance plans including HMSA and VA Community Care through TriWest.
+
+Please provide your insurance information or call 808-528-7177 and our staff will be happy to assist you.`;
+
+await sendSMS(
+phone,
+replyMessage
+);
+
+await saveConversation(
+phone,
+"assistant",
+replyMessage
+);
+}
+
+else if (
+bookingResult.intent ===
+"SERVICE_QUESTION"
+) {
+
+const replyMessage =
+
+`We offer:
+
+• Acupuncture
+• Medical Massage
+• Fire Cupping
+• Auto Injury Rehabilitation
+• Workers Compensation Treatment
+• VA Community Care Acupuncture
+• Pain Management
+
+Phone:
+808-528-7177`;
+
+await sendSMS(
+phone,
+replyMessage
+);
+
+await saveConversation(
+phone,
+"assistant",
+replyMessage
+);
+}
+
+else if (
+bookingResult.intent ===
+"CALL_REQUEST"
+) {
+
+const replyMessage =
+
+`Please call our office at 808-528-7177.
+
+A staff member will be happy to assist you.`;
+
+await sendSMS(
+phone,
+replyMessage
+);
+
+await saveConversation(
+phone,
+"assistant",
+replyMessage
+);
+}
+
+else if (
+bookingResult.intent ===
+"TRANSFER_TO_HUMAN"
+) {
+
+const replyMessage =
 
 `Thank you for contacting AcuTherapy Clinics.
 
 A staff member will contact you shortly.
 
-Phone: 808-528-7177`;
+Phone:
+808-528-7177`;
 
-  await sendSMS(
-    phone,
-    replyMessage
-  );
+await sendSMS(
+phone,
+replyMessage
+);
 
-  await saveConversation(
-    phone,
-    "assistant",
-    replyMessage
-  );
+await saveConversation(
+phone,
+"assistant",
+replyMessage
+);
 }
-
-else if (
-  bookingResult.intent ===
-  "CANCEL_APPOINTMENT"
-) {
-
-  const cancelResponse =
-    await fetch(
-      `${process.env.NEXT_PUBLIC_SITE_URL}/api/cancel-appointment`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type":
-            "application/json",
-        },
-        body: JSON.stringify({
-          phone,
-        }),
-      }
-    );
-
-  const cancelResult =
-    await cancelResponse.json();
-
-  if (
-    cancelResult.success
-  ) {
-
-    const replyMessage =
-      "Your appointment has been cancelled. Thank you.";
-
-    await sendSMS(
-      phone,
-      replyMessage
-    );
-
-    await saveConversation(
-      phone,
-      "assistant",
-      replyMessage
-    );
-  }
-}
-
-return NextResponse.json({
-  success: true,
-  processed: true,
-  intent:
-    bookingResult.intent,
-});
 
 } catch (error) {
 
