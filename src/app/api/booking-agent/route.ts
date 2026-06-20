@@ -103,6 +103,8 @@ INSURANCE_QUESTION
 
 SERVICE_QUESTION
 
+NEW_PATIENT_QUESTION
+
 CALL_REQUEST
 
 TRANSFER_TO_HUMAN
@@ -365,6 +367,30 @@ Return:
 
 {
 "intent":"CANCEL_APPOINTMENT"
+}
+
+========================================
+NEW PATIENT QUESTIONS
+========================================
+
+Examples:
+
+I am a new patient.
+
+I'm a new patient.
+
+How do I get started?
+
+What should I bring?
+
+What happens at the first visit?
+
+Do I need a referral?
+
+Return:
+
+{
+  "intent":"NEW_PATIENT_QUESTION"
 }
 
 ========================================

@@ -420,6 +420,39 @@ replyMessage
 }
 
 else if (
+  bookingResult.intent ===
+  "NEW_PATIENT_QUESTION"
+) {
+
+  const replyMessage =
+
+`Welcome to AcuTherapy Clinics.
+
+For your first visit:
+
+• Bring a photo ID
+• Bring your insurance card (if applicable)
+• Bring any referral or claim information
+• Arrive 10 minutes early
+
+Our staff will help complete any required paperwork.
+
+Phone:
+808-528-7177`;
+
+  await sendSMS(
+    phone,
+    replyMessage
+  );
+
+  await saveConversation(
+    phone,
+    "assistant",
+    replyMessage
+  );
+}
+
+else if (
 bookingResult.intent ===
 "SERVICE_QUESTION"
 ) {
