@@ -558,6 +558,10 @@ replyMessage
 );
 }
 
+return NextResponse.json({
+  success: true,
+});
+
 } catch (error) {
 
 console.error(
