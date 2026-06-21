@@ -488,14 +488,203 @@ Would either of these work?
     cancelResult,
   });
 
-} else {
+} else if (
+  bookingResult.intent ===
+  "LOCATION_QUESTION"
+) {
 
-  results.push({
-    id: smsId,
+  const replyMessage =
+`Aloha!
+
+Honolulu Office:
+1650 Liliha St Suite 208
+Honolulu HI 96817
+
+Aiea Office:
+98-211 Pali Momi St Suite 604
+Aiea HI 96701
+
+Phone:
+808-528-7177`;
+
+  await sendSMS(
     phone,
-    message,
-    bookingResult,
-  });
+    replyMessage
+  );
+
+  await saveConversation(
+    phone,
+    "assistant",
+    replyMessage
+  );
+
+} else if (
+  bookingResult.intent ===
+  "PRICE_QUESTION"
+) {
+
+  const replyMessage =
+`Pricing varies depending on the treatment and insurance coverage.
+
+Please call 808-528-7177 and our staff will be happy to assist you.`;
+
+  await sendSMS(
+    phone,
+    replyMessage
+  );
+
+  await saveConversation(
+    phone,
+    "assistant",
+    replyMessage
+  );
+
+} else if (
+  bookingResult.intent ===
+  "INSURANCE_QUESTION"
+) {
+
+  const replyMessage =
+`We commonly work with:
+
+• HMSA
+• HMAA
+• UHA
+• Workers Compensation
+• Auto Injury Insurance
+• VA Community Care / TriWest
+
+Coverage varies by plan.
+
+Please call 808-528-7177 for verification.`;
+
+  await sendSMS(
+    phone,
+    replyMessage
+  );
+
+  await saveConversation(
+    phone,
+    "assistant",
+    replyMessage
+  );
+
+} else if (
+  bookingResult.intent ===
+  "SERVICE_QUESTION"
+) {
+
+  const replyMessage =
+`We currently offer:
+
+• Acupuncture
+• Medical Massage
+• Fire Cupping
+• Auto Injury Rehabilitation
+• Workers Compensation Treatment
+• VA Community Care Acupuncture
+• Pain Management
+
+How may we help you today?`;
+
+  await sendSMS(
+    phone,
+    replyMessage
+  );
+
+  await saveConversation(
+    phone,
+    "assistant",
+    replyMessage
+  );
+
+} else if (
+  bookingResult.intent ===
+  "NEW_PATIENT_QUESTION"
+) {
+
+  const replyMessage =
+`Welcome to AcuTherapy Clinics.
+
+New patients should bring:
+
+• Photo ID
+• Insurance Card (if applicable)
+• Referral (if required)
+
+Your first visit typically includes consultation and treatment.
+
+Would you like to schedule an appointment?`;
+
+  await sendSMS(
+    phone,
+    replyMessage
+  );
+
+  await saveConversation(
+    phone,
+    "assistant",
+    replyMessage
+  );
+
+} else if (
+  bookingResult.intent ===
+  "KB_ANSWER"
+) {
+
+  let replyMessage =
+    bookingResult.answer || "";
+
+  if (
+    bookingResult.url
+  ) {
+
+    replyMessage +=
+`\n\nLearn more:\n${bookingResult.url}`;
+
+  }
+
+  replyMessage +=
+`\n\nWould you like to schedule an appointment?`;
+
+  await sendSMS(
+    phone,
+    replyMessage
+  );
+
+  await saveConversation(
+    phone,
+    "assistant",
+    replyMessage
+  );
+
+}else {
+
+  const replyMessage =
+`Aloha!
+
+Thank you for contacting AcuTherapy Clinics.
+
+How may we assist you today?
+
+You may:
+
+• Schedule an appointment
+• Reschedule an appointment
+• Cancel an appointment
+• Ask about our services`;
+
+  await sendSMS(
+    phone,
+    replyMessage
+  );
+
+  await saveConversation(
+    phone,
+    "assistant",
+    replyMessage
+  );
+
 }
 
     processed++;

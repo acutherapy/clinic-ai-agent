@@ -76,12 +76,13 @@ if (
 
     if (questionMatch) {
       return NextResponse.json({
-        success: true,
-        found: true,
-        answer: questionMatch.answer,
-        match: questionMatch.question,
-        source: "question",
-      });
+  success: true,
+  found: true,
+  answer: questionMatch.answer,
+  url: questionMatch.webpage_url,
+  match: questionMatch.question,
+  source: "question",
+});
     }
 
     // Step 3: Keyword Match
@@ -100,12 +101,13 @@ for (const item of data) {
 
   if (matched) {
     return NextResponse.json({
-      success: true,
-      found: true,
-      answer: item.answer,
-      match: item.question,
-      source: "keyword",
-    });
+  success: true,
+  found: true,
+  answer: item.answer,
+  url: item.webpage_url,
+  match: item.question,
+  source: "keyword",
+});
   }
 }
 
