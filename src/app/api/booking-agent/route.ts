@@ -126,6 +126,64 @@ Services:
 * Pain Management
 
 ========================================
+LANGUAGE
+========================================
+
+Always detect the customer's language.
+
+Every JSON response MUST include:
+
+"language"
+
+Supported values:
+
+English
+Chinese
+Spanish
+Japanese
+Korean
+
+If uncertain, use English.
+
+Examples:
+
+Hello
+
+{
+"intent":"GENERAL_QUESTION",
+"language":"English"
+}
+
+Hola
+
+{
+"intent":"GENERAL_QUESTION",
+"language":"Spanish"
+}
+
+你好
+
+{
+"intent":"GENERAL_QUESTION",
+"language":"Chinese"
+}
+
+こんにちは
+
+{
+"intent":"GENERAL_QUESTION",
+"language":"Japanese"
+}
+
+안녕하세요
+
+{
+"intent":"GENERAL_QUESTION",
+"language":"Korean"
+}
+
+
+========================================
 INTENTS
 =======
 
@@ -196,7 +254,8 @@ Directions?
 Return:
 
 {
-"intent":"LOCATION_QUESTION"
+"intent":"LOCATION_QUESTION",
+"language":"English"
 }
 
 ========================================
@@ -350,12 +409,16 @@ Return:
 BOOKING
 =======
 
+========================================
+BOOKING
+=======
+
 BOOK_APPOINTMENT is allowed ONLY when BOTH:
 
 1. Day exists
 2. Time exists
 
-Example:
+Examples:
 
 Friday 10am
 
@@ -363,19 +426,90 @@ Return:
 
 {
 "intent":"BOOK_APPOINTMENT",
+"language":"English",
 "day":"Friday",
 "time":"10:00 AM"
 }
 
-Use conversation history to understand:
+---
+
+Customer:
+
+I need an appointment
+
+Return:
+
+{
+"intent":"BOOK_APPOINTMENT",
+"language":"English",
+"needs_clarification":true,
+"missing":"day,time"
+}
+
+---
+
+Customer:
+
+I would like acupuncture
+
+Return:
+
+{
+"intent":"BOOK_APPOINTMENT",
+"language":"English",
+"needs_clarification":true,
+"missing":"day,time"
+}
+
+---
+
+Customer:
+
+Can I come in next week?
+
+Return:
+
+{
+"intent":"BOOK_APPOINTMENT",
+"language":"English",
+"needs_clarification":true,
+"missing":"day,time"
+}
+
+---
+
+Customer:
+
+Friday
+
+Return:
+
+{
+"intent":"CHECK_AVAILABILITY",
+"language":"English",
+"day":"Friday"
+}
+
+---
+
+Customer:
 
 10am works
 
-11am works
+Use conversation history.
 
-the first one
+If previous available times were offered,
+convert into BOOK_APPOINTMENT.
 
-the second one
+Otherwise:
+
+{
+"intent":"BOOK_APPOINTMENT",
+"language":"English",
+"needs_clarification":true,
+"missing":"day"
+}
+
 
 ========================================
 RESCHEDULE
@@ -390,6 +524,20 @@ Return:
 "day":"Monday",
 "time":"11:00 AM"
 }
+
+Customer:
+
+Move my appointment
+
+Return:
+
+{
+"intent":"RESCHEDULE_APPOINTMENT",
+"language":"English",
+"needs_clarification":true,
+"missing":"day,time"
+}
+
 
 ========================================
 CANCEL
@@ -410,6 +558,18 @@ Return:
 {
 "intent":"CANCEL_APPOINTMENT"
 }
+
+Customer:
+
+Cancel
+
+Return:
+
+{
+"intent":"CANCEL_APPOINTMENT",
+"language":"English"
+}
+
 
 ========================================
 NEW PATIENT QUESTIONS
@@ -438,6 +598,39 @@ Return:
 ========================================
 RULES
 =====
+If information required to complete an action is missing:
+
+Return:
+
+{
+"intent":"BOOK_APPOINTMENT",
+"language":"English",
+"needs_clarification":true,
+"missing":"day,time"
+}
+
+Never invent missing information.
+
+Never guess missing information.
+
+Use conversation history whenever possible.
+
+
+Always include:
+
+"language"
+
+in every response.
+
+Supported languages:
+
+English
+Chinese
+Spanish
+Japanese
+Korean
+
+If uncertain, use English.
 
 Never invent dates.
 
