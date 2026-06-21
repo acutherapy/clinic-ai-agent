@@ -37,16 +37,7 @@ export async function POST(
         .join("\n");
 
 // KB Search First
-
-try {
-  const host =
-  req.headers.get("host");
-
-const protocol =
-  host?.includes("localhost")
-    ? "http"
-    : "https";
-
+/*
 const kbResponse = await fetch(
   `${protocol}://${host}/api/search-kb`,
     {
@@ -84,6 +75,7 @@ const kbResponse = await fetch(
     error
   );
 }
+*/
 
 console.log(
   "OPENAI KEY PREFIX:",
@@ -490,17 +482,97 @@ ${message}
       )
       .trim();
 
-    const result =
-      JSON.parse(text);
+   const result =
+  JSON.parse(text);
 
+if (
+  result.intent ===
+    "BOOK_APPOINTMENT" ||
+
+  result.intent ===
+    "CHECK_AVAILABILITY" ||
+
+  result.intent ===
+    "RESCHEDULE_APPOINTMENT" ||
+
+  result.intent ===
+    "CANCEL_APPOINTMENT"
+) {
+  return NextResponse.json({
+    success: true,
+    ...result,
+    originalMessage:
+      message,
+  });
+}
+
+// KB Search for non-appointment questions
+
+try {
+
+  const host =
+    req.headers.get("host");
+
+  const protocol =
+    host?.includes("localhost")
+      ? "http"
+      : "https";
+
+  const kbResponse =
+    await fetch(
+      `${protocol}://${host}/api/search-kb`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          question: message,
+        }),
+      }
+    );
+
+  const kbResult =
+    await kbResponse.json();
+
+  console.log(
+    "KB RESULT:",
+    kbResult
+  );
+
+  if (
+    kbResult.found === true
+  ) {
     return NextResponse.json({
       success: true,
-      ...result,
+      intent: "KB_ANSWER",
+      answer:
+        kbResult.answer,
+      source:
+        kbResult.source,
       originalMessage:
         message,
     });
+  }
 
-  } catch (err: any) {
+} catch (error) {
+
+  console.error(
+    "KB Search Failed:",
+    error
+  );
+
+}
+
+return NextResponse.json({
+  success: true,
+  ...result,
+  originalMessage:
+    message,
+});
+
+} catch (err: any) {
 
     console.error(
       "BOOKING AGENT ERROR:",
