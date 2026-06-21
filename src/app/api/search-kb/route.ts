@@ -23,6 +23,29 @@ export async function POST(req: NextRequest) {
     .replace(/\s+/g, " ")
     .trim();
 
+const bookingWords = [
+  "appointment",
+  "schedule",
+  "book",
+  "booking",
+  "availability",
+  "available",
+  "reschedule",
+  "cancel",
+];
+
+if (
+  bookingWords.some((word) =>
+    normalizedText.includes(word)
+  )
+) {
+  return NextResponse.json({
+    success: true,
+    found: false,
+    answer: null,
+  });
+}
+
     // Step 1: Direct Question Match
     const { data, error } = await supabase
       .from("clinic_knowledge_base")
