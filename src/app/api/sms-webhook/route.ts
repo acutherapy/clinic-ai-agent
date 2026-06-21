@@ -158,6 +158,51 @@ else if (
   "BOOK_APPOINTMENT"
 ) {
 
+if (
+  !bookingResult.day ||
+  !bookingResult.time
+) {
+
+  const slotsResponse =
+    await fetch(
+      `${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots`
+    );
+
+  const slotsResult =
+    await slotsResponse.json();
+
+  const slots =
+    slotsResult.slots || [];
+
+  const replyMessage =
+
+`I currently have:
+
+${slots
+  .map(
+    (slot: string) =>
+      `• ${slot}`
+  )
+  .join("\n")}
+
+Please reply with the time that works best.`;
+
+  await sendSMS(
+    phone,
+    replyMessage
+  );
+
+  await saveConversation(
+    phone,
+    "assistant",
+    replyMessage
+  );
+
+  return NextResponse.json({
+    success: true,
+  });
+}
+
   const createResponse =
     await fetch(
       `${process.env.NEXT_PUBLIC_SITE_URL}/api/create-booking`,
