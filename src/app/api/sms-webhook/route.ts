@@ -502,6 +502,34 @@ bookingResult.intent ===
 "KB_ANSWER"
 ) {
 
+let replyMessage =
+bookingResult.answer || "";
+
+if (
+bookingResult.url
+) {
+
+replyMessage +=
+`\n\nLearn more:\n${bookingResult.url}`;
+
+}
+
+replyMessage +=
+`\n\nWould you like to schedule an appointment?`;
+
+await sendSMS(
+phone,
+replyMessage
+);
+
+await saveConversation(
+phone,
+"assistant",
+replyMessage
+);
+}
+
+
 const replyMessage =
 bookingResult.answer;
 
