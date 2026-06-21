@@ -735,19 +735,21 @@ try {
   );
 
   if (
-    kbResult.found === true
-  ) {
-    return NextResponse.json({
-      success: true,
-      intent: "KB_ANSWER",
-      answer:
-        kbResult.answer,
-      source:
-        kbResult.source,
-      originalMessage:
-        message,
-    });
-  }
+  kbResult.found === true
+) {
+  return NextResponse.json({
+    success: true,
+    intent: "KB_ANSWER",
+    answer:
+      kbResult.answer,
+    url:
+      kbResult.url,
+    source:
+      kbResult.source,
+    originalMessage:
+      message,
+  });
+}
 
 } catch (error) {
 
