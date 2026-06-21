@@ -1008,6 +1008,111 @@ phone,
 replyMessage
 );
 }
+else if (
+bookingResult.intent ===
+"CLARIFICATION_NEEDED"
+) {
+
+let replyMessage = "";
+
+if (
+bookingResult.language ===
+"Chinese"
+) {
+
+replyMessage =
+
+`请问您需要哪方面帮助？
+
+• 预约治疗
+• 更改预约
+• 取消预约
+• 保险咨询
+• 治疗咨询
+• 诊所地址`;
+
+}
+
+else if (
+bookingResult.language ===
+"Spanish"
+) {
+
+replyMessage =
+
+`¿Cómo podemos ayudarle?
+
+• Programar una cita
+• Cambiar una cita
+• Cancelar una cita
+• Preguntas sobre seguro
+• Preguntas sobre tratamiento
+• Ubicación de la clínica`;
+
+}
+
+else if (
+bookingResult.language ===
+"Japanese"
+) {
+
+replyMessage =
+
+`どのようなご用件でしょうか。
+
+• ご予約
+• 予約変更
+• 予約キャンセル
+• 保険について
+• 治療について
+• クリニック所在地`;
+
+}
+
+else if (
+bookingResult.language ===
+"Korean"
+) {
+
+replyMessage =
+
+`어떤 도움이 필요하신가요?
+
+• 예약
+• 예약 변경
+• 예약 취소
+• 보험 문의
+• 치료 문의
+• 위치 문의`;
+
+}
+
+else {
+
+replyMessage =
+
+`How may we help you today?
+
+• Schedule an appointment
+• Reschedule an appointment
+• Cancel an appointment
+• Insurance question
+• Treatment question
+• Clinic location`;
+
+}
+
+await sendSMS(
+phone,
+replyMessage
+);
+
+await saveConversation(
+phone,
+"assistant",
+replyMessage
+);
+}
 
 else if (
 bookingResult.intent ===
