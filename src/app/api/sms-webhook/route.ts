@@ -529,22 +529,6 @@ replyMessage
 );
 }
 
-
-const replyMessage =
-bookingResult.answer;
-
-await sendSMS(
-phone,
-replyMessage
-);
-
-await saveConversation(
-phone,
-"assistant",
-replyMessage
-);
-}
-
 else if (
 bookingResult.intent ===
 "SERVICE_QUESTION"
