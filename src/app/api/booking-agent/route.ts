@@ -257,51 +257,179 @@ UNKNOWN
 KB QUESTIONS
 ============
 
-Health questions should usually return:
+# KB QUESTIONS
+
+Use understanding, not keyword matching.
+
+The customer may describe symptoms, injuries, diagnoses, conditions, or treatment goals in many different ways.
+
+If the customer is asking about:
+
+• symptoms
+• pain
+• injuries
+• conditions
+• treatment effectiveness
+• acupuncture benefits
+• massage benefits
+• recovery
+• rehabilitation
+
+Return:
 
 {
 "intent":"KB_QUESTION",
-"language":"English"
+"language":"Detected Language"
+}
+
+Additionally, identify the primary topic.
+
+Examples:
+
+Sciatica
+→ "topic":"sciatica"
+
+Headache
+→ "topic":"headache"
+
+Migraine
+→ "topic":"headache"
+
+Back pain
+→ "topic":"back_pain"
+
+Low back pain
+→ "topic":"back_pain"
+
+Neck pain
+→ "topic":"neck_pain"
+
+Shoulder pain
+→ "topic":"shoulder_pain"
+
+Knee pain
+→ "topic":"knee_pain"
+
+Whiplash
+→ "topic":"whiplash"
+
+Herniated disc
+→ "topic":"herniated_disc"
+
+Arthritis
+→ "topic":"arthritis"
+
+Plantar fasciitis
+→ "topic":"plantar_fasciitis"
+
+Frozen shoulder
+→ "topic":"frozen_shoulder"
+
+Tennis elbow
+→ "topic":"tennis_elbow"
+
+Workers compensation injury
+→ "topic":"workers_comp"
+
+Auto accident injury
+→ "topic":"auto_injury"
+
+Sports injury
+→ "topic":"sports_injury"
+
+Chronic pain
+→ "topic":"chronic_pain"
+
+Insomnia
+→ "topic":"insomnia"
+
+Stress
+→ "topic":"stress"
+
+Anxiety
+→ "topic":"anxiety"
+
+Examples:
+
+针灸可以治疗坐骨神经痛吗？
+
+{
+"intent":"KB_QUESTION",
+"language":"Chinese",
+"topic":"sciatica"
+}
+
+我有偏头痛
+
+{
+"intent":"KB_QUESTION",
+"language":"Chinese",
+"topic":"headache"
+}
+
+My lower back hurts
+
+{
+"intent":"KB_QUESTION",
+"language":"English",
+"topic":"back_pain"
 }
 
 Examples:
 
 Can acupuncture help sciatica?
 
-My back hurts.
+Can acupuncture help headaches?
 
-Neck pain.
+Can acupuncture help back pain?
 
-Headache.
+My lower back hurts after lifting something.
 
-Migraine.
+I have pain shooting down my leg.
 
-Stress.
+I was diagnosed with a herniated disc.
 
-Anxiety.
+Can acupuncture help with nerve pain?
 
-Insomnia.
+I was in a car accident and my neck hurts.
 
-Auto accident injury.
+I have migraines every week.
 
-Car accident.
+I cannot sleep well.
 
-Whiplash.
-
-Workers compensation injury.
-
-VA referral.
-
-Sports injury.
+I feel stressed and anxious.
 
 Can acupuncture help?
+
+Would treatment help my condition?
+
+针灸可以治疗坐骨神经痛吗？
+
+我腰痛好多年了。
+
+我最近失眠。
+
+车祸以后脖子一直痛。
+
+我有偏头痛。
+
+针灸会不会有帮助？
+
+Treat these as knowledge questions.
+
+Do not require exact keyword matches.
+
+Understand the meaning and intent behind the message.
+
+If the customer is asking whether a treatment may help a symptom, injury, diagnosis, or condition:
 
 Return:
 
 {
 "intent":"KB_QUESTION",
-"language":"English"
+"language":"Detected Language"
 }
+
 
 ========================================
 BOOKING
@@ -464,6 +592,110 @@ ${message}
    const result =
   JSON.parse(text);
 
+  if (
+result.intent ===
+"KB_QUESTION"
+) {
+
+const host =
+req.headers.get("host");
+
+const protocol =
+host?.includes("localhost")
+? "http"
+: "https";
+
+const kbResponse =
+await fetch(
+`${protocol}://${host}/api/search-kb`,
+{
+method: "POST",
+headers: {
+"Content-Type":
+"application/json",
+},
+body: JSON.stringify({
+question:
+result.topic ||
+message,
+}),
+}
+);
+
+const kbResult =
+await kbResponse.json();
+
+console.log(
+"KB TOPIC SEARCH:",
+result.topic
+);
+
+if (
+kbResult.found === true
+) {
+
+let translatedAnswer =
+kbResult.answer;
+
+if (
+result.language &&
+result.language !==
+"English"
+) {
+
+const translation =
+await openai.responses.create({
+model: "gpt-4.1-mini",
+input: `
+
+Translate the following health information into ${result.language}.
+
+Only return the translation.
+
+Do not add explanations.
+
+Text:
+
+${kbResult.answer}
+
+`,
+});
+
+translatedAnswer =
+translation.output_text
+.trim();
+}
+
+return NextResponse.json({
+success: true,
+intent: "KB_ANSWER",
+language:
+result.language ||
+"English",
+topic:
+result.topic,
+answer:
+translatedAnswer,
+url:
+kbResult.url,
+source:
+kbResult.source,
+originalMessage:
+message,
+});
+}
+
+return NextResponse.json({
+success: true,
+intent: "CLARIFICATION_NEEDED",
+language:
+result.language ||
+"English",
+originalMessage:
+message,
+});
+}
+
 if (
   result.intent ===
     "BOOK_APPOINTMENT" ||
@@ -483,70 +715,6 @@ if (
     originalMessage:
       message,
   });
-}
-
-// KB Search for non-appointment questions
-
-try {
-
-  const host =
-    req.headers.get("host");
-
-  const protocol =
-    host?.includes("localhost")
-      ? "http"
-      : "https";
-
-  const kbResponse =
-    await fetch(
-      `${protocol}://${host}/api/search-kb`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type":
-            "application/json",
-        },
-        body: JSON.stringify({
-          question: message,
-        }),
-      }
-    );
-
-  const kbResult =
-    await kbResponse.json();
-
-  console.log(
-    "KB RESULT:",
-    kbResult
-  );
-
-  if (
-kbResult.found === true
-) {
-return NextResponse.json({
-success: true,
-intent: "KB_ANSWER",
-language:
-result.language ||
-"English",
-answer:
-kbResult.answer,
-url:
-kbResult.url,
-source:
-kbResult.source,
-originalMessage:
-message,
-});
-}
-
-} catch (error) {
-
-  console.error(
-    "KB Search Failed:",
-    error
-  );
-
 }
 
 return NextResponse.json({
