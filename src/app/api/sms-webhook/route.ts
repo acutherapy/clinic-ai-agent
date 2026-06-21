@@ -953,6 +953,57 @@ bookingResult.intent ===
 let replyMessage =
 bookingResult.answer || "";
 
+try {
+
+const aiResponse =
+await fetch(
+`${process.env.NEXT_PUBLIC_SITE_URL}/api/sms-agent`,
+{
+method: "POST",
+headers: {
+"Content-Type":
+"application/json",
+},
+body: JSON.stringify({
+
+patientMessage:
+message,
+
+knowledge:
+bookingResult.answer,
+
+language:
+bookingResult.language ||
+"English",
+
+url:
+bookingResult.url ||
+
+"",
+
+}),
+}
+);
+
+const aiResult =
+await aiResponse.json();
+
+if (
+aiResult.reply
+) {
+replyMessage =
+aiResult.reply;
+}
+
+} catch (error) {
+
+console.error(
+"AI RESPONSE ERROR",
+error
+);
+
+}
+
 if (
 bookingResult.url
 ) {
@@ -961,9 +1012,6 @@ replyMessage +=
 `\n\nLearn more:\n${bookingResult.url}`;
 
 }
-
-replyMessage +=
-`\n\nWould you like to schedule an appointment?`;
 
 await sendSMS(
 phone,
