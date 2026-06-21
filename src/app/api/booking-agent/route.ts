@@ -182,6 +182,44 @@ Hola
 "language":"Korean"
 }
 
+========================================
+LANGUAGE
+========
+
+Always detect customer language.
+
+Return:
+
+"language"
+
+Supported:
+
+English
+Chinese
+Spanish
+Japanese
+Korean
+
+========================================
+AI UNDERSTANDING
+================
+
+Your job is to understand what the customer actually wants.
+
+Do not rely on keywords alone.
+
+Use conversation history.
+
+Extract:
+
+intent
+language
+
+If applicable:
+
+topic
+symptom
+insurance
 
 ========================================
 INTENTS
@@ -195,13 +233,13 @@ RESCHEDULE_APPOINTMENT
 
 CANCEL_APPOINTMENT
 
+KB_QUESTION
+
 LOCATION_QUESTION
 
 PRICE_QUESTION
 
 INSURANCE_QUESTION
-
-SERVICE_QUESTION
 
 NEW_PATIENT_QUESTION
 
@@ -211,388 +249,136 @@ TRANSFER_TO_HUMAN
 
 GENERAL_QUESTION
 
-QUESTION
+CLARIFICATION_NEEDED
 
 UNKNOWN
 
 ========================================
-GENERAL GREETINGS
-=================
+KB QUESTIONS
+============
 
-Examples:
-
-Hello
-Hi
-Hey
-Good morning
-Good afternoon
-Thank you
-Thanks
-
-Return:
+Health questions should usually return:
 
 {
-"intent":"GENERAL_QUESTION"
+"intent":"KB_QUESTION",
+"language":"English"
 }
 
-========================================
-LOCATION QUESTIONS
-==================
-
 Examples:
 
-Where are you located?
+Can acupuncture help sciatica?
 
-What's your address?
+My back hurts.
 
-Where is your clinic?
+Neck pain.
 
-Location?
+Headache.
 
-Directions?
+Migraine.
+
+Stress.
+
+Anxiety.
+
+Insomnia.
+
+Auto accident injury.
+
+Car accident.
+
+Whiplash.
+
+Workers compensation injury.
+
+VA referral.
+
+Sports injury.
+
+Can acupuncture help?
 
 Return:
 
 {
-"intent":"LOCATION_QUESTION",
+"intent":"KB_QUESTION",
 "language":"English"
 }
 
 ========================================
-PRICE QUESTIONS
-===============
+BOOKING
+=======
+
+If customer clearly wants an appointment:
+
+{
+"intent":"BOOK_APPOINTMENT",
+"language":"English"
+}
 
 Examples:
 
-How much is acupuncture?
+I need an appointment.
 
-How much is massage?
+I want acupuncture.
 
-What is the cost?
+Can I come in next week?
 
-Price?
+Schedule me.
 
-Pricing?
+Book me.
 
-Return:
+If day or time missing:
 
 {
-"intent":"PRICE_QUESTION"
+"intent":"BOOK_APPOINTMENT",
+"language":"English",
+"needs_clarification":true,
+"missing":"day,time"
 }
 
 ========================================
-INSURANCE QUESTIONS
-===================
+CLARIFICATION
+=============
+
+If customer's intent is unclear:
+
+{
+"intent":"CLARIFICATION_NEEDED",
+"language":"English"
+}
 
 Examples:
 
-Do you take HMSA?
+Help.
 
-Do you accept HMSA?
+Question.
 
-Do you take VA?
+Need information.
 
-Do you accept VA?
-
-Do you take TriWest?
-
-Do you take Medicare?
-
-What insurance do you accept?
-
-Return:
-
-{
-"intent":"INSURANCE_QUESTION"
-}
-
-========================================
-SERVICE QUESTIONS
-=================
-
-Examples:
-
-What services do you offer?
-
-Do you do acupuncture?
-
-Do you do massage?
-
-Do you offer cupping?
-
-Return:
-
-{
-"intent":"SERVICE_QUESTION"
-}
-
-========================================
-CALL REQUEST
-============
-
-Examples:
-
-Can I speak with someone?
-
-Can someone call me?
-
-Please call me.
-
-I need to talk to someone.
-
-Return:
-
-{
-"intent":"CALL_REQUEST"
-}
+Can you help me?
 
 ========================================
 TRANSFER TO HUMAN
 =================
 
-Examples:
+Refund
 
-I need a refund.
+Complaint
 
-I have a complaint.
+Attorney
 
-I want a manager.
+Lawyer
 
-Lawyer.
+Lawsuit
 
-Attorney.
+Medical diagnosis
 
-Lawsuit.
-
-Can acupuncture cure my condition?
-
-Should I stop my medication?
+Medication advice
 
 Return:
 
 {
-"intent":"TRANSFER_TO_HUMAN"
-}
-
-========================================
-AVAILABILITY
-============
-
-Friday
-
-Return:
-
-{
-"intent":"CHECK_AVAILABILITY",
-"day":"Friday"
-}
-
-What about Friday?
-
-Return:
-
-{
-"intent":"CHECK_AVAILABILITY",
-"day":"Friday"
-}
-
-Anything Saturday?
-
-Return:
-
-{
-"intent":"CHECK_AVAILABILITY",
-"day":"Saturday"
-}
-
-========================================
-BOOKING
-=======
-
-========================================
-BOOKING
-=======
-
-BOOK_APPOINTMENT is allowed ONLY when BOTH:
-
-1. Day exists
-2. Time exists
-
-Examples:
-
-Friday 10am
-
-Return:
-
-{
-"intent":"BOOK_APPOINTMENT",
-"language":"English",
-"day":"Friday",
-"time":"10:00 AM"
-}
-
----
-
-Customer:
-
-I need an appointment
-
-Return:
-
-{
-"intent":"BOOK_APPOINTMENT",
-"language":"English",
-"needs_clarification":true,
-"missing":"day,time"
-}
-
----
-
-Customer:
-
-I would like acupuncture
-
-Return:
-
-{
-"intent":"BOOK_APPOINTMENT",
-"language":"English",
-"needs_clarification":true,
-"missing":"day,time"
-}
-
----
-
-Customer:
-
-Can I come in next week?
-
-Return:
-
-{
-"intent":"BOOK_APPOINTMENT",
-"language":"English",
-"needs_clarification":true,
-"missing":"day,time"
-}
-
----
-
-Customer:
-
-Friday
-
-Return:
-
-{
-"intent":"CHECK_AVAILABILITY",
-"language":"English",
-"day":"Friday"
-}
-
----
-
-Customer:
-
-10am works
-
-Use conversation history.
-
-If previous available times were offered,
-convert into BOOK_APPOINTMENT.
-
-Otherwise:
-
-{
-"intent":"BOOK_APPOINTMENT",
-"language":"English",
-"needs_clarification":true,
-"missing":"day"
-}
-
-
-========================================
-RESCHEDULE
-==========
-
-Move my appointment to Monday 11am
-
-Return:
-
-{
-"intent":"RESCHEDULE_APPOINTMENT",
-"day":"Monday",
-"time":"11:00 AM"
-}
-
-Customer:
-
-Move my appointment
-
-Return:
-
-{
-"intent":"RESCHEDULE_APPOINTMENT",
-"language":"English",
-"needs_clarification":true,
-"missing":"day,time"
-}
-
-
-========================================
-CANCEL
-======
-
-Cancel my appointment
-
-Return:
-
-{
-"intent":"CANCEL_APPOINTMENT"
-}
-
-Please cancel
-
-Return:
-
-{
-"intent":"CANCEL_APPOINTMENT"
-}
-
-Customer:
-
-Cancel
-
-Return:
-
-{
-"intent":"CANCEL_APPOINTMENT",
+"intent":"TRANSFER_TO_HUMAN",
 "language":"English"
-}
-
-
-========================================
-NEW PATIENT QUESTIONS
-========================================
-
-Examples:
-
-I am a new patient.
-
-I'm a new patient.
-
-How do I get started?
-
-What should I bring?
-
-What happens at the first visit?
-
-Do I need a referral?
-
-Return:
-
-{
-  "intent":"NEW_PATIENT_QUESTION"
 }
 
 ========================================
@@ -735,20 +521,23 @@ try {
   );
 
   if (
-  kbResult.found === true
+kbResult.found === true
 ) {
-  return NextResponse.json({
-    success: true,
-    intent: "KB_ANSWER",
-    answer:
-      kbResult.answer,
-    url:
-      kbResult.url,
-    source:
-      kbResult.source,
-    originalMessage:
-      message,
-  });
+return NextResponse.json({
+success: true,
+intent: "KB_ANSWER",
+language:
+result.language ||
+"English",
+answer:
+kbResult.answer,
+url:
+kbResult.url,
+source:
+kbResult.source,
+originalMessage:
+message,
+});
 }
 
 } catch (error) {

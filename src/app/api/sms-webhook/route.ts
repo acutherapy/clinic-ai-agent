@@ -346,7 +346,95 @@ bookingResult.intent ===
 "GENERAL_QUESTION"
 ) {
 
-const replyMessage =
+let replyMessage = "";
+
+if (
+bookingResult.language ===
+"Chinese"
+) {
+
+replyMessage =
+
+`您好，欢迎联系 AcuTherapy Clinics。
+
+请问我们今天如何帮助您？
+
+您可以：
+
+• 预约治疗
+• 更改预约
+• 取消预约
+• 咨询针灸或按摩
+• 咨询保险
+• 查询诊所地址`;
+
+}
+
+else if (
+bookingResult.language ===
+"Spanish"
+) {
+
+replyMessage =
+
+`Hola, gracias por contactar AcuTherapy Clinics.
+
+¿Cómo podemos ayudarle hoy?
+
+Puede:
+
+• Programar una cita
+• Cambiar una cita
+• Cancelar una cita
+• Preguntar sobre tratamientos
+• Consultar seguros
+• Solicitar nuestras ubicaciones`;
+
+}
+
+else if (
+bookingResult.language ===
+"Japanese"
+) {
+
+replyMessage =
+
+`AcuTherapy Clinicsへようこそ。
+
+本日はどのようなご用件でしょうか。
+
+• ご予約
+• 予約変更
+• 予約キャンセル
+• 治療内容について
+• 保険について
+• クリニック所在地について`;
+
+}
+
+else if (
+bookingResult.language ===
+"Korean"
+) {
+
+replyMessage =
+
+`AcuTherapy Clinics에 문의해 주셔서 감사합니다.
+
+어떤 도움을 드릴까요?
+
+• 예약
+• 예약 변경
+• 예약 취소
+• 치료 문의
+• 보험 문의
+• 위치 문의`;
+
+}
+
+else {
+
+replyMessage =
 
 `Aloha! This is AcuTherapy Clinics.
 
@@ -360,6 +448,8 @@ You may:
 • Ask about our services
 • Ask about insurance
 • Ask for our locations`;
+
+}
 
 await sendSMS(
 phone,
@@ -378,7 +468,99 @@ bookingResult.intent ===
 "LOCATION_QUESTION"
 ) {
 
-const replyMessage =
+let replyMessage = "";
+
+if (
+bookingResult.language ===
+"Chinese"
+) {
+
+replyMessage =
+
+`AcuTherapy Clinics
+
+檀香山诊所：
+1650 Liliha St Suite 208
+Honolulu HI 96817
+
+Aiea诊所：
+98-211 Pali Momi St Suite 604
+Aiea HI 96701
+
+电话：
+808-528-7177`;
+
+}
+
+else if (
+bookingResult.language ===
+"Spanish"
+) {
+
+replyMessage =
+
+`AcuTherapy Clinics
+
+Ubicación Honolulu:
+1650 Liliha St Suite 208
+Honolulu HI 96817
+
+Ubicación Aiea:
+98-211 Pali Momi St Suite 604
+Aiea HI 96701
+
+Teléfono:
+808-528-7177`;
+
+}
+
+else if (
+bookingResult.language ===
+"Japanese"
+) {
+
+replyMessage =
+
+`AcuTherapy Clinics
+
+ホノルル院：
+1650 Liliha St Suite 208
+Honolulu HI 96817
+
+アイエア院：
+98-211 Pali Momi St Suite 604
+Aiea HI 96701
+
+電話：
+808-528-7177`;
+
+}
+
+else if (
+bookingResult.language ===
+"Korean"
+) {
+
+replyMessage =
+
+`AcuTherapy Clinics
+
+호놀룰루 지점:
+1650 Liliha St Suite 208
+Honolulu HI 96817
+
+아이에아 지점:
+98-211 Pali Momi St Suite 604
+Aiea HI 96701
+
+전화:
+808-528-7177`;
+
+}
+
+else {
+
+replyMessage =
 
 `AcuTherapy Clinics
 
@@ -392,6 +574,8 @@ Aiea HI 96701
 
 Phone:
 808-528-7177`;
+
+}
 
 await sendSMS(
 phone,
@@ -410,7 +594,115 @@ bookingResult.intent ===
 "PRICE_QUESTION"
 ) {
 
-const replyMessage =
+let replyMessage = "";
+
+if (
+bookingResult.language ===
+"Chinese"
+) {
+
+replyMessage =
+
+`我们接受：
+
+• 医疗保险
+• VA Community Care
+• 工伤保险
+• 车祸保险
+• 自费患者
+
+为了提供准确费用，请告知：
+
+• 针灸或按摩
+• 保险类型
+• 新患者或旧患者
+
+电话：
+808-528-7177`;
+
+}
+
+else if (
+bookingResult.language ===
+"Spanish"
+) {
+
+replyMessage =
+
+`Aceptamos:
+
+• Seguros médicos
+• VA Community Care
+• Compensación laboral
+• Accidentes automovilísticos
+• Pacientes privados
+
+Para proporcionar información de precios, indique:
+
+• Acupuntura o masaje
+• Tipo de seguro
+• Paciente nuevo o existente
+
+Teléfono:
+808-528-7177`;
+
+}
+
+else if (
+bookingResult.language ===
+"Japanese"
+) {
+
+replyMessage =
+
+`以下に対応しております：
+
+• 医療保険
+• VA Community Care
+• 労災
+• 自動車事故
+• 自費診療
+
+料金案内のため以下をお知らせください：
+
+• 鍼治療またはマッサージ
+• 保険の種類
+• 初診または再診
+
+電話：
+808-528-7177`;
+
+}
+
+else if (
+bookingResult.language ===
+"Korean"
+) {
+
+replyMessage =
+
+`다음 환자를 받고 있습니다:
+
+• 건강보험
+• VA Community Care
+• 산재보험
+• 교통사고
+• 자비 부담 환자
+
+정확한 비용 안내를 위해 알려주세요:
+
+• 침 치료 또는 마사지
+• 보험 종류
+• 신규 환자 또는 기존 환자
+
+전화:
+808-528-7177`;
+
+}
+
+else {
+
+replyMessage =
 
 `We accept:
 
@@ -429,6 +721,8 @@ To provide pricing information, please let us know:
 Phone:
 808-528-7177`;
 
+}
+
 await sendSMS(
 phone,
 replyMessage
@@ -446,11 +740,77 @@ bookingResult.intent ===
 "INSURANCE_QUESTION"
 ) {
 
-const replyMessage =
+let replyMessage = "";
+
+if (
+bookingResult.language ===
+"Chinese"
+) {
+
+replyMessage =
+
+`我们接受多种保险计划，包括 HMSA 以及通过 TriWest 的 VA Community Care。
+
+请提供您的保险信息，或致电：
+
+808-528-7177`;
+
+}
+
+else if (
+bookingResult.language ===
+"Spanish"
+) {
+
+replyMessage =
+
+`Aceptamos muchos planes de seguro, incluyendo HMSA y VA Community Care a través de TriWest.
+
+Por favor proporcione la información de su seguro o llame al:
+
+808-528-7177`;
+
+}
+
+else if (
+bookingResult.language ===
+"Japanese"
+) {
+
+replyMessage =
+
+`HMSAおよびTriWest経由のVA Community Careを含む多くの保険に対応しております。
+
+保険情報をご提供いただくか、お電話ください。
+
+808-528-7177`;
+
+}
+
+else if (
+bookingResult.language ===
+"Korean"
+) {
+
+replyMessage =
+
+`저희는 HMSA 및 TriWest를 통한 VA Community Care를 포함한 다양한 보험을 받고 있습니다.
+
+보험 정보를 보내주시거나 아래로 연락해 주세요.
+
+808-528-7177`;
+
+}
+
+else {
+
+replyMessage =
 
 `We accept many insurance plans including HMSA and VA Community Care through TriWest.
 
 Please provide your insurance information or call 808-528-7177 and our staff will be happy to assist you.`;
+
+}
 
 await sendSMS(
 phone,
@@ -465,11 +825,99 @@ replyMessage
 }
 
 else if (
-  bookingResult.intent ===
-  "NEW_PATIENT_QUESTION"
+bookingResult.intent ===
+"NEW_PATIENT_QUESTION"
 ) {
 
-  const replyMessage =
+let replyMessage = "";
+
+if (
+bookingResult.language ===
+"Chinese"
+) {
+
+replyMessage =
+
+`欢迎来到 AcuTherapy Clinics。
+
+首次就诊请携带：
+
+• 身份证件
+• 保险卡（如适用）
+• 转诊或理赔资料
+• 提前10分钟到达
+
+电话：
+808-528-7177`;
+
+}
+
+else if (
+bookingResult.language ===
+"Spanish"
+) {
+
+replyMessage =
+
+`Bienvenido a AcuTherapy Clinics.
+
+Para su primera visita traiga:
+
+• Identificación con foto
+• Tarjeta de seguro
+• Referencia o reclamación
+• Llegue 10 minutos antes
+
+Teléfono:
+808-528-7177`;
+
+}
+
+else if (
+bookingResult.language ===
+"Japanese"
+) {
+
+replyMessage =
+
+`AcuTherapy Clinicsへようこそ。
+
+初回受診時は以下をご持参ください：
+
+• 写真付き身分証明書
+• 保険証
+• 紹介状または請求書類
+• 10分前到着
+
+電話：
+808-528-7177`;
+
+}
+
+else if (
+bookingResult.language ===
+"Korean"
+) {
+
+replyMessage =
+
+`AcuTherapy Clinics에 오신 것을 환영합니다.
+
+첫 방문 시 준비물:
+
+• 신분증
+• 보험 카드
+• 의뢰서 또는 청구 정보
+• 10분 일찍 도착
+
+전화:
+808-528-7177`;
+
+}
+
+else {
+
+replyMessage =
 
 `Welcome to AcuTherapy Clinics.
 
@@ -480,21 +928,21 @@ For your first visit:
 • Bring any referral or claim information
 • Arrive 10 minutes early
 
-Our staff will help complete any required paperwork.
-
 Phone:
 808-528-7177`;
 
-  await sendSMS(
-    phone,
-    replyMessage
-  );
+}
 
-  await saveConversation(
-    phone,
-    "assistant",
-    replyMessage
-  );
+await sendSMS(
+phone,
+replyMessage
+);
+
+await saveConversation(
+phone,
+"assistant",
+replyMessage
+);
 }
 
 else if (
