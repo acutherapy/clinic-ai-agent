@@ -1164,6 +1164,117 @@ replyMessage
 
 else if (
 bookingResult.intent ===
+"CLINIC_INFO_QUESTION"
+) {
+
+const replyMessage =
+
+`Aloha!
+
+I am Emma, the AI Front Desk for AcuTherapy Clinics.
+
+We provide:
+
+• Acupuncture
+• Medical Massage
+• Fire Cupping
+• Auto Injury Rehabilitation
+• Workers Compensation Treatment
+• VA Community Care Acupuncture
+
+Locations:
+
+Honolulu
+1650 Liliha St Suite 208
+
+Aiea
+98-211 Pali Momi St Suite 604
+
+Phone:
+808-528-7177`;
+
+await sendSMS(
+phone,
+replyMessage
+);
+
+await saveConversation(
+phone,
+"assistant",
+replyMessage
+);
+}
+
+else if (
+bookingResult.intent ===
+"BUSINESS_HOURS_QUESTION"
+) {
+
+const replyMessage =
+
+`Our current office hours are:
+
+Monday - Saturday
+9:00 AM - 1:00 PM
+
+Phone:
+808-528-7177`;
+
+await sendSMS(
+phone,
+replyMessage
+);
+
+await saveConversation(
+phone,
+"assistant",
+replyMessage
+);
+}
+
+else if (
+bookingResult.intent ===
+"AVAILABILITY_QUESTION"
+) {
+
+const slotsResponse =
+await fetch(
+`${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots`
+);
+
+const slotsResult =
+await slotsResponse.json();
+
+const slots =
+slotsResult.slots || [];
+
+const replyMessage =
+
+`Our next available appointments are:
+
+${slots
+.map(
+(slot: string) =>
+`• ${slot}`
+)
+.join("\n")}
+
+Please reply with the time that works best.`;
+
+await sendSMS(
+phone,
+replyMessage
+);
+
+await saveConversation(
+phone,
+"assistant",
+replyMessage
+);
+}
+
+else if (
+bookingResult.intent ===
 "CALL_REQUEST"
 ) {
 

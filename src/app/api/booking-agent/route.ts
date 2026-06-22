@@ -277,6 +277,12 @@ INSURANCE_QUESTION
 
 NEW_PATIENT_QUESTION
 
+CLINIC_INFO_QUESTION
+
+BUSINESS_HOURS_QUESTION
+
+AVAILABILITY_QUESTION
+
 CALL_REQUEST
 
 TRANSFER_TO_HUMAN
@@ -286,6 +292,77 @@ GENERAL_QUESTION
 CLARIFICATION_NEEDED
 
 UNKNOWN
+
+========================================
+CLINIC INFO QUESTIONS
+========================================
+
+Examples:
+
+What is your name?
+
+Who are you?
+
+What clinic is this?
+
+Tell me about your clinic.
+
+Return:
+
+{
+"intent":"CLINIC_INFO_QUESTION",
+"language":"English"
+}
+
+========================================
+BUSINESS HOURS QUESTIONS
+========================================
+
+Examples:
+
+Are you open today?
+
+What are your hours?
+
+What time do you open?
+
+What time do you close?
+
+When are you open?
+
+Return:
+
+{
+"intent":"BUSINESS_HOURS_QUESTION",
+"language":"English"
+}
+
+========================================
+AVAILABILITY QUESTIONS
+========================================
+
+Examples:
+
+What is your earliest availability?
+
+What is your next appointment?
+
+When do you have times?
+
+Do you have openings?
+
+Any openings this week?
+
+Earliest appointment?
+
+Next available appointment?
+
+Return:
+
+{
+"intent":"AVAILABILITY_QUESTION",
+"language":"English"
+}
 
 ========================================
 KB QUESTIONS
@@ -344,147 +421,6 @@ Return:
 "language":"Detected Language"
 }
 
-Additionally, identify the primary topic.
-
-Examples:
-
-Sciatica
-→ "topic":"sciatica"
-
-Headache
-→ "topic":"headache"
-
-Migraine
-→ "topic":"headache"
-
-Back pain
-→ "topic":"back_pain"
-
-Low back pain
-→ "topic":"back_pain"
-
-Neck pain
-→ "topic":"neck_pain"
-
-Shoulder pain
-→ "topic":"shoulder_pain"
-
-Knee pain
-→ "topic":"knee_pain"
-
-Whiplash
-→ "topic":"whiplash"
-
-Herniated disc
-→ "topic":"herniated_disc"
-
-Arthritis
-→ "topic":"arthritis"
-
-Plantar fasciitis
-→ "topic":"plantar_fasciitis"
-
-Frozen shoulder
-→ "topic":"frozen_shoulder"
-
-Tennis elbow
-→ "topic":"tennis_elbow"
-
-Workers compensation injury
-→ "topic":"workers_comp"
-
-Auto accident injury
-→ "topic":"auto_injury"
-
-Sports injury
-→ "topic":"sports_injury"
-
-Chronic pain
-→ "topic":"chronic_pain"
-
-Insomnia
-→ "topic":"insomnia"
-
-Stress
-→ "topic":"stress"
-
-Anxiety
-→ "topic":"anxiety"
-
-Examples:
-
-针灸可以治疗坐骨神经痛吗？
-
-{
-"intent":"KB_QUESTION",
-"language":"Chinese",
-"topic":"sciatica"
-}
-
-我有偏头痛
-
-{
-"intent":"KB_QUESTION",
-"language":"Chinese",
-"topic":"headache"
-}
-
-My lower back hurts
-
-{
-"intent":"KB_QUESTION",
-"language":"English",
-"topic":"back_pain"
-}
-
-Examples:
-
-Can acupuncture help sciatica?
-
-Can acupuncture help headaches?
-
-Can acupuncture help back pain?
-
-My lower back hurts after lifting something.
-
-I have pain shooting down my leg.
-
-I was diagnosed with a herniated disc.
-
-Can acupuncture help with nerve pain?
-
-I was in a car accident and my neck hurts.
-
-I have migraines every week.
-
-I cannot sleep well.
-
-I feel stressed and anxious.
-
-Can acupuncture help?
-
-Would treatment help my condition?
-
-针灸可以治疗坐骨神经痛吗？
-
-我腰痛好多年了。
-
-我最近失眠。
-
-车祸以后脖子一直痛。
-
-我有偏头痛。
-
-针灸会不会有帮助？
-
-Treat these as knowledge questions.
-
-Do not require exact keyword matches.
-
-Understand the meaning and intent behind the message.
-
-If the customer is asking whether a treatment may help a symptom, injury, diagnosis, or condition:
-
 Return:
 
 {
@@ -507,8 +443,6 @@ If customer clearly wants an appointment:
 Examples:
 
 I need an appointment.
-
-I want acupuncture.
 
 Can I come in next week?
 
