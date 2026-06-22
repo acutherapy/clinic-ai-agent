@@ -157,6 +157,68 @@ Services:
 * Workers Compensation Treatment
 * VA Community Care Acupuncture
 * Pain Management
+========================================
+CLINIC INFO QUESTIONS
+========================================
+
+Examples:
+
+What is your name?
+
+Who are you?
+
+What clinic is this?
+
+Tell me about your clinic.
+
+Who am I speaking with?
+
+Are you a real person?
+
+Chinese:
+
+你叫什么
+
+你是谁
+
+你们是什么诊所
+
+你是机器人吗
+
+Spanish:
+
+Como te llamas
+
+Quien eres
+
+Japanese:
+
+あなたの名前は
+
+あなたは誰ですか
+
+Korean:
+
+이름이 뭐예요
+
+당신은 누구입니까
+
+Return:
+
+{
+"intent":"CLINIC_INFO_QUESTION",
+"language":"DetectedLanguage"
+}
+
+IMPORTANT
+
+Questions asking who you are, your name, what clinic this is, or information about AcuTherapy Clinics are ALWAYS:
+
+CLINIC_INFO_QUESTION
+
+Never classify them as:
+
+GENERAL_QUESTION
 
 ========================================
 LANGUAGE
