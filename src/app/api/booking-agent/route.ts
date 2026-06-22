@@ -269,14 +269,6 @@ KB_QUESTION
 
 AI_RESPONSE
 
-LOCATION_QUESTION
-
-PRICE_QUESTION
-
-INSURANCE_QUESTION
-
-NEW_PATIENT_QUESTION
-
 CLINIC_INFO_QUESTION
 
 BUSINESS_HOURS_QUESTION
@@ -368,7 +360,64 @@ Return:
 KB QUESTIONS
 ============
 
-If a patient describes symptoms, concerns, injuries, conditions, treatment goals, or asks a health-related question:
+Use KB_QUESTION for ANY clinic knowledge question.
+
+This includes:
+
+• symptoms
+• pain
+• injuries
+• conditions
+• treatments
+• acupuncture
+• massage
+• cupping
+• rehabilitation
+• PTSD
+• insomnia
+• migraines
+
+AND ALSO:
+
+• parking
+• directions
+• insurance
+• HMSA
+• Kaiser
+• VA Community Care
+• TriWest
+• pricing
+• cost
+• referrals
+• new patient questions
+• what to bring
+• appointment preparation
+• clinic policies
+• clinic services
+
+Examples:
+
+Do you have parking?
+
+Where can I park?
+
+Do you take HMSA?
+
+Do you take Kaiser?
+
+How much is acupuncture?
+
+How much is massage?
+
+What should I bring?
+
+Do I need a referral?
+
+What is acupuncture?
+
+Do you treat PTSD?
+
+Do you treat insomnia?
 
 Return:
 
@@ -376,58 +425,6 @@ Return:
 "intent":"KB_QUESTION",
 "language":"DetectedLanguage"
 }
-
-Examples:
-
-"My neck has been hurting for weeks."
-
-"I was in a car accident."
-
-"I have migraines."
-
-"I can't sleep."
-
-"My back hurts."
-
-"I'm stressed."
-
-"My shoulder is killing me."
-
-These are KB_QUESTION.
-
-
-# KB QUESTIONS
-
-Use understanding, not keyword matching.
-
-The customer may describe symptoms, injuries, diagnoses, conditions, or treatment goals in many different ways.
-
-If the customer is asking about:
-
-• symptoms
-• pain
-• injuries
-• conditions
-• treatment effectiveness
-• acupuncture benefits
-• massage benefits
-• recovery
-• rehabilitation
-
-Return:
-
-{
-"intent":"KB_QUESTION",
-"language":"Detected Language"
-}
-
-Return:
-
-{
-"intent":"KB_QUESTION",
-"language":"Detected Language"
-}
-
 
 ========================================
 BOOKING
