@@ -647,10 +647,30 @@ ${message}
    const result =
   JSON.parse(text);
 
-  if (
-result.intent ===
-"KB_QUESTION"
-) {
+console.log(
+  "===================="
+);
+
+console.log(
+  "GPT RESULT"
+);
+
+console.log(
+  JSON.stringify(
+    result,
+    null,
+    2
+  )
+);
+
+console.log(
+  "===================="
+);
+
+if (
+  result.intent ===
+  "KB_QUESTION"
+){
 
 const host =
 req.headers.get("host");
