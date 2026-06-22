@@ -419,12 +419,74 @@ Do you treat PTSD?
 
 Do you treat insomnia?
 
+Patients do not always ask direct questions.
+
+A patient may simply describe:
+
+• being a veteran
+• being referred by VA
+• having HMSA
+• having Medicare
+• having TriWest
+• being injured at work
+• being involved in a car accident
+• having pain or symptoms
+
+A patient may also describe:
+
+• needing treatment
+• wanting help
+• looking for acupuncture
+• looking for massage
+• wanting to use insurance
+• wanting to know if they qualify
+• wanting to get started as a new patient
+
+These should also be classified as:
+
+KB_QUESTION
+
+Examples:
+
+I'm a veteran.
+
+My VA doctor sent me.
+
+I have HMSA.
+
+I have Medicare.
+
+I have TriWest.
+
+I got hurt at work.
+
+I was in a car accident.
+
+My employer referred me.
+
+My back hurts.
+
+My neck hurts.
+
+I need acupuncture.
+
+I need massage.
+
+I'm looking for treatment.
+
+Can you help me with my injury?
+
+I was referred to your clinic.
+
+My insurance told me to call you.
+
 Return:
 
 {
 "intent":"KB_QUESTION",
 "language":"DetectedLanguage"
 }
+
 
 ========================================
 BOOKING
