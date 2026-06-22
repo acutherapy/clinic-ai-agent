@@ -4,6 +4,7 @@ import {
   getMessage,
 } from "@/lib/ringcentral";
 import { saveConversation } from "@/lib/conversation";
+import { openai } from "@/lib/openai";
 
 export async function POST(
 req: NextRequest
@@ -23,6 +24,50 @@ console.log(
     2
   )
 );
+
+async function generateNaturalKBResponse(
+  patientMessage: string,
+  kbAnswer: string,
+  language: string
+) {
+  const response =
+    await openai.responses.create({
+      model: "gpt-4.1-mini",
+
+      input: `
+You are Emma.
+
+You are the AI Front Desk for AcuTherapy Clinics.
+
+Patient language:
+${language}
+
+Patient message:
+${patientMessage}
+
+Knowledge base answer:
+${kbAnswer}
+
+Instructions:
+
+1. Respond in the patient's language.
+2. Sound warm and natural.
+3. Do not sound like a database.
+4. Do not diagnose.
+5. Keep under 3 short paragraphs.
+6. If appropriate, invite the patient to schedule.
+7. Never mention "knowledge base".
+8. Never invent medical claims.
+
+Return only the message.
+`
+    });
+
+  return (
+    response.output_text ||
+    kbAnswer
+  );
+}
 
 const messageId =
   body?.body?.changes?.[0]
@@ -951,7 +996,11 @@ bookingResult.intent ===
 ) {
 
 let replyMessage =
-bookingResult.answer || "";
+await generateNaturalKBResponse(
+  message,
+  bookingResult.answer || "",
+  bookingResult.language || "English"
+);
 
 try {
 
