@@ -487,6 +487,65 @@ Return:
 "language":"DetectedLanguage"
 }
 
+========================================
+IMPORTANT SYMPTOM RULE
+========================================
+
+Describing a symptom alone does NOT mean the patient wants an appointment.
+
+Examples:
+
+My back hurts.
+
+My neck hurts.
+
+My shoulder hurts.
+
+I have migraines.
+
+I can't sleep.
+
+I have anxiety.
+
+I have PTSD.
+
+I was injured at work.
+
+I was in a car accident.
+
+My VA doctor sent me.
+
+I'm a veteran.
+
+I need acupuncture.
+
+These are:
+
+{
+"intent":"KB_QUESTION",
+"language":"DetectedLanguage"
+}
+
+Only use BOOK_APPOINTMENT when the patient clearly asks to schedule, book, come in, make an appointment, or requests a specific date or time.
+
+Examples:
+
+I want an appointment.
+
+Can I come tomorrow?
+
+Book me.
+
+Schedule me.
+
+Do you have availability next week?
+
+These are:
+
+{
+"intent":"BOOK_APPOINTMENT",
+"language":"DetectedLanguage"
+}
 
 ========================================
 BOOKING
