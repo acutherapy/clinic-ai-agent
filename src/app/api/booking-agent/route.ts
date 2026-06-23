@@ -157,6 +157,22 @@ Services:
 * Workers Compensation Treatment
 * VA Community Care Acupuncture
 * Pain Management
+
+Questions about clinic location include:
+
+Where are you located
+Where is your office
+Where is your clinic
+Clinic address
+Location
+Directions
+How do I find you
+Where can I find you
+What is your address
+Where are you based
+Where are your offices
+How do I get there
+
 ========================================
 CLINIC INFO QUESTIONS
 ========================================
@@ -277,10 +293,6 @@ Hola
 "language":"Korean"
 }
 
-========================================
-LANGUAGE
-========
-
 Always detect customer language.
 
 Return:
@@ -348,27 +360,6 @@ CLARIFICATION_NEEDED
 UNKNOWN
 
 ========================================
-CLINIC INFO QUESTIONS
-========================================
-
-Examples:
-
-What is your name?
-
-Who are you?
-
-What clinic is this?
-
-Tell me about your clinic.
-
-Return:
-
-{
-"intent":"CLINIC_INFO_QUESTION",
-"language":"English"
-}
-
-========================================
 BUSINESS HOURS QUESTIONS
 ========================================
 
@@ -417,10 +408,9 @@ Return:
 "intent":"AVAILABILITY_QUESTION",
 "language":"English"
 }
-
 ========================================
 KB QUESTIONS
-============
+========================================
 
 Use KB_QUESTION for ANY clinic knowledge question.
 
@@ -435,112 +425,53 @@ This includes:
 • massage
 • cupping
 • rehabilitation
-• PTSD
-• insomnia
-• migraines
-
-AND ALSO:
-
-• parking
-• directions
 • insurance
 • HMSA
-• Kaiser
-• VA Community Care
+• Medicare
+• VA
 • TriWest
-• pricing
-• cost
+• Workers Compensation
+• Auto Injury
 • referrals
-• new patient questions
-• what to bring
-• appointment preparation
-• clinic policies
+• pricing
+• parking
+• directions
 • clinic services
-
-Examples:
-
-Do you have parking?
-
-Where can I park?
-
-Do you take HMSA?
-
-Do you take Kaiser?
-
-How much is acupuncture?
-
-How much is massage?
-
-What should I bring?
-
-Do I need a referral?
-
-What is acupuncture?
-
-Do you treat PTSD?
-
-Do you treat insomnia?
+• new patient questions
 
 Patients do not always ask direct questions.
 
-A patient may simply describe:
-
-• being a veteran
-• being referred by VA
-• having HMSA
-• having Medicare
-• having TriWest
-• being injured at work
-• being involved in a car accident
-• having pain or symptoms
-
-A patient may also describe:
-
-• needing treatment
-• wanting help
-• looking for acupuncture
-• looking for massage
-• wanting to use insurance
-• wanting to know if they qualify
-• wanting to get started as a new patient
-
-These should also be classified as:
-
-KB_QUESTION
-
 Examples:
-
-I'm a veteran.
-
-My VA doctor sent me.
-
-I have HMSA.
-
-I have Medicare.
-
-I have TriWest.
-
-I got hurt at work.
-
-I was in a car accident.
-
-My employer referred me.
 
 My back hurts.
 
 My neck hurts.
 
-I need acupuncture.
+I have migraines.
 
-I need massage.
+I can't sleep.
+
+I'm a veteran.
+
+My VA doctor sent me.
+
+I got hurt at work.
+
+I was in a car accident.
+
+I have HMSA.
+
+I need acupuncture.
 
 I'm looking for treatment.
 
-Can you help me with my injury?
+Do you have parking?
 
-I was referred to your clinic.
+Where are you located?
 
-My insurance told me to call you.
+How much is acupuncture?
+
+Do I need a referral?
 
 Return:
 
@@ -550,64 +481,33 @@ Return:
 }
 
 ========================================
-IMPORTANT SYMPTOM RULE
+IMPORTANT
 ========================================
 
-Describing a symptom alone does NOT mean the patient wants an appointment.
+Describing symptoms, injuries, insurance status,
+veteran status, work injuries, or accident history
+does NOT automatically mean the patient wants
+an appointment.
 
 Examples:
 
 My back hurts.
 
-My neck hurts.
+I'm a veteran.
 
-My shoulder hurts.
-
-I have migraines.
-
-I can't sleep.
-
-I have anxiety.
-
-I have PTSD.
-
-I was injured at work.
+I got hurt at work.
 
 I was in a car accident.
 
-My VA doctor sent me.
-
-I'm a veteran.
-
-I need acupuncture.
-
-These are:
+Return:
 
 {
 "intent":"KB_QUESTION",
 "language":"DetectedLanguage"
 }
 
-Only use BOOK_APPOINTMENT when the patient clearly asks to schedule, book, come in, make an appointment, or requests a specific date or time.
-
-Examples:
-
-I want an appointment.
-
-Can I come tomorrow?
-
-Book me.
-
-Schedule me.
-
-Do you have availability next week?
-
-These are:
-
-{
-"intent":"BOOK_APPOINTMENT",
-"language":"DetectedLanguage"
-}
+Only use BOOK_APPOINTMENT when the patient
+clearly requests scheduling.
 
 ========================================
 BOOKING
@@ -641,24 +541,27 @@ If day or time missing:
 
 ========================================
 CLARIFICATION
-=============
+========================================
 
-If customer's intent is unclear:
-
-{
-"intent":"CLARIFICATION_NEEDED",
-"language":"English"
-}
+Only use CLARIFICATION_NEEDED when it is impossible
+to determine what the patient wants.
 
 Examples:
 
-Help.
+???
 
-Question.
+asdf
 
-Need information.
+ok
 
-Can you help me?
+hello?
+
+Return:
+
+{
+"intent":"CLARIFICATION_NEEDED",
+"language":"DetectedLanguage"
+}
 
 ========================================
 TRANSFER TO HUMAN
