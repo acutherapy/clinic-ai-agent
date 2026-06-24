@@ -95,11 +95,12 @@ export async function POST(req: NextRequest) {
 
     // 3. Check if there are attachments (photos/documents)
     const hasAttachments = sms.attachments && sms.attachments.some(
-      (att: any) => att.contentType && (
-        att.contentType.startsWith("image/") || 
-        att.contentType.startsWith("application/") ||
+      (att: any) => 
+        (att.contentType && (
+          att.contentType.startsWith("image/") || 
+          att.contentType.startsWith("application/")
+        )) ||
         att.type === "MmsAttachment"
-      )
     );
 
     if (hasAttachments) {
