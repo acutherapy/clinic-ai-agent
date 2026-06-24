@@ -1,1400 +1,393 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  sendSMS,
-  getMessage,
-} from "@/lib/ringcentral";
-import { saveConversation } from "@/lib/conversation";
-import { openai } from "@/lib/openai";
+import { sendSMS, getMessage } from "@/lib/ringcentral";
+import { saveConversation, getConversationHistory } from "@/lib/conversation";
+import { generateEmmaResponse } from "@/lib/emma";
+import { supabase } from "@/lib/supabase";
 
-export async function POST(
-req: NextRequest
-) {
-try {
-const body =
-await req.json();
+const DR_CAI_PHONE = "+18083083879";
 
-console.log(
-  "========== INCOMING SMS =========="
-);
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
 
-console.log(
-  JSON.stringify(
-    body,
-    null,
-    2
-  )
-);
+    console.log("========== INCOMING SMS ==========");
+    console.log(JSON.stringify(body, null, 2));
 
-async function generateNaturalKBResponse(
-  patientMessage: string,
-  kbAnswer: string,
-  language: string
-) {
-  const response =
-    await openai.responses.create({
-      model: "gpt-4.1-mini",
+    const messageId = body?.body?.changes?.[0]?.newMessageIds?.[0];
 
-      input: `
-You are Emma.
-
-You are the AI Front Desk for AcuTherapy Clinics.
-
-Patient language:
-${language}
-
-Patient message:
-${patientMessage}
-
-Knowledge base answer:
-${kbAnswer}
-
-Instructions:
-
-1. Respond in the patient's language.
-2. Sound warm and natural.
-3. Do not sound like a database.
-4. Do not diagnose.
-5. Keep under 3 short paragraphs.
-6. If appropriate, invite the patient to schedule.
-7. Never mention "knowledge base".
-8. Never invent medical claims.
-
-Return only the message.
-`
-    });
-
-  return (
-    response.output_text ||
-    kbAnswer
-  );
-}
-
-const messageId =
-  body?.body?.changes?.[0]
-    ?.newMessageIds?.[0];
-
-if (!messageId) {
-  return NextResponse.json({
-    success: true,
-    skipped: true,
-  });
-}
-
-console.log(
-  "MESSAGE ID:",
-  messageId
-);
-
-const sms =
-  await getMessage(
-    String(messageId)
-  );
-
-  if (
-  sms.direction !==
-  "Inbound"
-) {
-  return NextResponse.json({
-    success: true,
-    skipped: true,
-  });
-}
-
-console.log(
-  "FULL SMS:"
-);
-
-console.log(
-  JSON.stringify(
-    sms,
-    null,
-    2
-  )
-);
-
-const phone =
-  sms.from?.phoneNumber ||
-  "";
-
-const message =
-  sms.subject ||
-  sms.text ||
-  "";
-
-await saveConversation(
-  phone,
-  "user",
-  message
-);
-
-const bookingResponse =
-  await fetch(
-    `${process.env.NEXT_PUBLIC_SITE_URL}/api/booking-agent`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type":
-          "application/json",
-      },
-      body: JSON.stringify({
-        phone,
-        message,
-      }),
+    if (!messageId) {
+      return NextResponse.json({
+        success: true,
+        skipped: true,
+      });
     }
-  );
 
-const bookingResult =
-  await bookingResponse.json();
+    console.log("MESSAGE ID:", messageId);
 
-console.log(
-  "BOOKING RESULT:"
-);
+    const sms = await getMessage(String(messageId));
 
-console.log(
-  JSON.stringify(
-    bookingResult,
-    null,
-    2
-  )
-);
+    if (sms.direction !== "Inbound") {
+      return NextResponse.json({
+        success: true,
+        skipped: true,
+      });
+    }
 
-if (
-  bookingResult.intent ===
-  "CHECK_AVAILABILITY"
-) {
-  const slotsResponse =
-    await fetch(
-      `${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots?day=${bookingResult.day}`
-    );
+    console.log("FULL SMS:", JSON.stringify(sms, null, 2));
 
-  const slotsResult =
-    await slotsResponse.json();
+    const phone = sms.from?.phoneNumber || "";
+    const message = sms.subject || sms.text || "";
 
-  const slots =
-    slotsResult.slots || [];
+    // 1. Save user message to database
+    await saveConversation(phone, "user", message);
 
-  const replyMessage =
-
-`Available times for ${bookingResult.day}:
-
-${slots
-.map(
-(slot: string) =>
-`• ${slot}`
-)
-.join("\n")}
-
-Reply with the time that works best.`;
-
-  await sendSMS(
-    phone,
-    replyMessage
-  );
-
-  await saveConversation(
-    phone,
-    "assistant",
-    replyMessage
-  );
-}
-
-else if (
-  bookingResult.intent ===
-  "BOOK_APPOINTMENT"
-) {
-
-if (
-  !bookingResult.day ||
-  !bookingResult.time
-) {
-
-  const slotsResponse =
-    await fetch(
-      `${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots`
-    );
-
-  const slotsResult =
-    await slotsResponse.json();
-
-  const slots =
-    slotsResult.slots || [];
-
-  const replyMessage =
-
-`I currently have:
-
-${slots
-  .map(
-    (slot: string) =>
-      `• ${slot}`
-  )
-  .join("\n")}
-
-Please reply with the time that works best.`;
-
-  await sendSMS(
-    phone,
-    replyMessage
-  );
-
-  await saveConversation(
-    phone,
-    "assistant",
-    replyMessage
-  );
-
-  return NextResponse.json({
-    success: true,
-  });
-}
-
-  const createResponse =
-    await fetch(
-      `${process.env.NEXT_PUBLIC_SITE_URL}/api/create-booking`,
+    // 2. Classify intent via booking-agent
+    const bookingResponse = await fetch(
+      `${process.env.NEXT_PUBLIC_SITE_URL}/api/booking-agent`,
       {
         method: "POST",
         headers: {
-          "Content-Type":
-            "application/json",
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          patientName:
-            "Patient",
           phone,
-          day:
-            bookingResult.day,
-          time:
-            bookingResult.time,
+          message,
         }),
       }
     );
 
-  const createResult =
-    await createResponse.json();
+    const bookingResult = await bookingResponse.json();
+    console.log("BOOKING RESULT:", JSON.stringify(bookingResult, null, 2));
 
-  if (
-    createResult.success
-  ) {
+    // 3. Check if there are attachments (photos/documents)
+    const hasAttachments = sms.attachments && sms.attachments.length > 0;
 
-    const replyMessage =
-      `Great! Your appointment has been scheduled for ${bookingResult.day} at ${bookingResult.time}.`;
+    if (hasAttachments) {
+      console.log("Inbound message has attachments. Triggering human handoff and doctor notification...");
+      
+      // Warm human-like reply based on language
+      const humanMessage = bookingResult.language === "Chinese"
+        ? "收到！我已经收到了您发送的图片，并转发给了我们诊所的工作人员。工作人员在确认保险及证件后会尽快与您联系。如有其他问题，欢迎致电 808-528-7177。"
+        : bookingResult.language === "Spanish"
+        ? "¡Recibido! He recibido las imágenes de sus documentos y las he enviado a nuestro personal. Alguien se comunicará con usted poco después de verificar su cobertura. Si tiene alguna duda, puede llamarnos al 808-528-7177."
+        : bookingResult.language === "Japanese"
+        ? "受信しました！ご送付いただいた画像を受け取り、当院のスタッフへ転送いたしました。スタッフが保険等の確認を行い、折り返しご連絡いたします。ご不明な点がございましたら 808-528-7177 までお電話ください。"
+        : bookingResult.language === "Korean"
+        ? "수신되었습니다! 보내주신 사진을 수령하여 저희 직원에게 전달했습니다. 보험 및 신원 확인 후 곧 연락드리겠습니다. 문의 사항이 있으시면 808-528-7177로 전화해 주세요."
+        : "Received! I have received your pictures and forwarded them to our office staff. Someone will verify your details and contact you shortly. If you have any questions, feel free to call us at 808-528-7177.";
 
-    await sendSMS(
-      phone,
-      replyMessage
-    );
+      // Send to patient
+      await sendSMS(phone, humanMessage);
+      await saveConversation(phone, "assistant", humanMessage);
 
-    await saveConversation(
-      phone,
-      "assistant",
-      replyMessage
-    );
+      // Look up patient name
+      let patientName = sms.from?.name || "Patient";
+      try {
+        const { data: dbLead } = await supabase
+          .from("leads")
+          .select("name")
+          .eq("phone", phone.replace(/\D/g, "").slice(-10))
+          .limit(1)
+          .single();
+        if (dbLead?.name) {
+          patientName = dbLead.name;
+        } else {
+          const { data: dbAppt } = await supabase
+            .from("appointments")
+            .select("patient_name")
+            .eq("phone", phone)
+            .limit(1)
+            .single();
+          if (dbAppt?.patient_name) {
+            patientName = dbAppt.patient_name;
+          }
+        }
+      } catch (e) {}
 
-  } else {
+      // Notify the doctor
+      await sendSMS(
+        DR_CAI_PHONE,
+        `
+NEW ATTACHMENT
+Patient: ${patientName} (${phone})
+Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral message store.
+`
+      );
 
-    const replyMessage =
-      "Sorry, that time is no longer available.";
+      return NextResponse.json({ success: true, attachmentHandoff: true });
+    }
 
-    await sendSMS(
-      phone,
-      replyMessage
-    );
-  }
-}
+    let actionResult: any = null;
 
-else if (
-  bookingResult.intent ===
-  "RESCHEDULE_APPOINTMENT"
-) {
+    // 4. Perform transactional database/calendar operations based on intent
+    if (bookingResult.intent === "BOOK_APPOINTMENT") {
+      if (bookingResult.day && bookingResult.time) {
+        try {
+          const createResponse = await fetch(
+            `${process.env.NEXT_PUBLIC_SITE_URL}/api/create-booking`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                patientName: sms.from?.name || "Patient",
+                phone,
+                day: bookingResult.day,
+                time: bookingResult.time,
+              }),
+            }
+          );
 
-  const nextDate =
-    new Date();
+          const createResult = await createResponse.json();
+          if (createResult.success) {
+            actionResult = {
+              success: true,
+              action: "BOOK",
+              appointmentTime: `${bookingResult.day} at ${bookingResult.time}`,
+              serviceType: createResult.serviceType,
+            };
+          } else {
+            actionResult = {
+              success: false,
+              action: "BOOK",
+              reason: createResult.reason || "FULL",
+            };
+          }
+        } catch (err: any) {
+          console.error("Booking transaction failed:", err);
+          actionResult = {
+            success: false,
+            action: "BOOK",
+            reason: "ERROR",
+          };
+        }
+      }
+    } else if (bookingResult.intent === "RESCHEDULE_APPOINTMENT") {
+      if (bookingResult.day && bookingResult.time) {
+        try {
+          const nextDate = new Date();
+          const dayMap: Record<string, number> = {
+            Sunday: 0,
+            Monday: 1,
+            Tuesday: 2,
+            Wednesday: 3,
+            Thursday: 4,
+            Friday: 5,
+            Saturday: 6,
+          };
 
-  const dayMap: Record<string, number> = {
-    Sunday: 0,
-    Monday: 1,
-    Tuesday: 2,
-    Wednesday: 3,
-    Thursday: 4,
-    Friday: 5,
-    Saturday: 6,
-  };
+          const targetDay = dayMap[bookingResult.day];
+          while (nextDate.getDay() !== targetDay) {
+            nextDate.setDate(nextDate.getDate() + 1);
+          }
 
-  const targetDay =
-    dayMap[
-      bookingResult.day
+          const hour = parseInt(bookingResult.time);
+          nextDate.setHours(hour, 0, 0, 0);
+
+          const rescheduleResponse = await fetch(
+            `${process.env.NEXT_PUBLIC_SITE_URL}/api/reschedule-appointment`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                phone,
+                startTime: nextDate.toISOString(),
+              }),
+            }
+          );
+
+          const rescheduleResult = await rescheduleResponse.json();
+          if (rescheduleResult.success) {
+            actionResult = {
+              success: true,
+              action: "RESCHEDULE",
+              appointmentTime: `${bookingResult.day} at ${bookingResult.time}`,
+            };
+          } else {
+            actionResult = {
+              success: false,
+              action: "RESCHEDULE",
+              reason: rescheduleResult.reason || "FAILED",
+            };
+          }
+        } catch (err: any) {
+          console.error("Reschedule transaction failed:", err);
+          actionResult = {
+            success: false,
+            action: "RESCHEDULE",
+            reason: "ERROR",
+          };
+        }
+      }
+    } else if (bookingResult.intent === "CANCEL_APPOINTMENT") {
+      try {
+        const cancelResponse = await fetch(
+          `${process.env.NEXT_PUBLIC_SITE_URL}/api/cancel-appointment`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              phone,
+            }),
+          }
+        );
+
+        const cancelResult = await cancelResponse.json();
+        if (cancelResult.success) {
+          actionResult = {
+            success: true,
+            action: "CANCEL",
+          };
+        } else {
+          actionResult = {
+            success: false,
+            action: "CANCEL",
+            reason: "FAILED",
+          };
+        }
+      } catch (err: any) {
+        console.error("Cancel transaction failed:", err);
+        actionResult = {
+          success: false,
+          action: "CANCEL",
+          reason: "ERROR",
+        };
+      }
+    }
+
+    // 5. Retrieve available timeslots dynamically
+    let availableSlots: string[] = [];
+    try {
+      const slotsUrl = bookingResult.day
+        ? `${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots?day=${bookingResult.day}`
+        : `${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots`;
+      
+      const slotsResponse = await fetch(slotsUrl);
+      const slotsResult = await slotsResponse.json();
+      availableSlots = slotsResult.slots || [];
+    } catch (err) {
+      console.error("Error fetching slots:", err);
+    }
+
+    // 6. Query knowledge base if user has general/informational question (RAG)
+    let kbAnswer = "";
+    let kbUrl = "";
+    const kbIntents = [
+      "KB_QUESTION",
+      "CLINIC_INFO_QUESTION",
+      "BUSINESS_HOURS_QUESTION",
+      "LOCATION_QUESTION",
+      "PRICE_QUESTION",
+      "INSURANCE_QUESTION",
+      "SERVICE_QUESTION",
+      "NEW_PATIENT_QUESTION",
+      "GENERAL_QUESTION",
     ];
 
-  while (
-    nextDate.getDay() !==
-    targetDay
-  ) {
-    nextDate.setDate(
-      nextDate.getDate() + 1
-    );
-  }
+    if (kbIntents.includes(bookingResult.intent)) {
+      try {
+        const kbResponse = await fetch(
+          `${process.env.NEXT_PUBLIC_SITE_URL}/api/search-kb`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              question: message,
+            }),
+          }
+        );
 
-  const hour =
-    parseInt(
-      bookingResult.time
-    );
+        const kbResult = await kbResponse.json();
+        if (kbResult.found) {
+          kbAnswer = kbResult.answer || "";
+          kbUrl = kbResult.url || "";
+        }
+      } catch (err) {
+        console.error("KB Search failed:", err);
+      }
+    }
 
-  nextDate.setHours(
-    hour,
-    0,
-    0,
-    0
-  );
+    // 7. Fetch conversation history for assistant reply generation context
+    const conversationHistory = phone ? await getConversationHistory(phone, 6) : [];
 
-  const rescheduleResponse =
-    await fetch(
-      `${process.env.NEXT_PUBLIC_SITE_URL}/api/reschedule-appointment`,
+    // 8. Generate a warm, human-like, database-backed response via Emma
+    const replyMessage = await generateEmmaResponse({
+      patientMessage: message,
+      conversationHistory,
+      intent: bookingResult.intent,
+      language: bookingResult.language || "English",
+      actionResult,
+      kbAnswer,
+      kbUrl,
+      availableSlots,
+    });
+
+    // 9. Send SMS and save conversation
+    await sendSMS(phone, replyMessage);
+    await saveConversation(phone, "assistant", replyMessage);
+
+    // 10. If the intent is TRANSFER_TO_HUMAN or UNKNOWN (fallback cases), notify the doctor
+    const needsDoctorNotification = ["TRANSFER_TO_HUMAN", "UNKNOWN"].includes(bookingResult.intent);
+    
+    if (needsDoctorNotification) {
+      console.log(`Intent is ${bookingResult.intent}. Notifying doctor for human assistance...`);
+      
+      // Look up patient name
+      let patientName = sms.from?.name || "Patient";
+      try {
+        const { data: dbLead } = await supabase
+          .from("leads")
+          .select("name")
+          .eq("phone", phone.replace(/\D/g, "").slice(-10))
+          .limit(1)
+          .single();
+        if (dbLead?.name) {
+          patientName = dbLead.name;
+        } else {
+          const { data: dbAppt } = await supabase
+            .from("appointments")
+            .select("patient_name")
+            .eq("phone", phone)
+            .limit(1)
+            .single();
+          if (dbAppt?.patient_name) {
+            patientName = dbAppt.patient_name;
+          }
+        }
+      } catch (e) {}
+
+      // Notify the doctor via SMS
+      await sendSMS(
+        DR_CAI_PHONE,
+        `
+HUMAN HELP NEEDED
+Patient: ${patientName} (${phone})
+Message: "${message}"
+Emma has replied and requested human staff follow-up.
+`
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+    });
+  } catch (error: any) {
+    console.error("sms webhook error", error);
+    return NextResponse.json(
       {
-        method: "POST",
-        headers: {
-          "Content-Type":
-            "application/json",
-        },
-        body: JSON.stringify({
-          phone,
-          startTime:
-            nextDate.toISOString(),
-        }),
+        success: false,
+        error: error.message,
+      },
+      {
+        status: 500,
       }
     );
-
-  const rescheduleResult =
-    await rescheduleResponse.json();
-
-  if (
-    rescheduleResult.success
-  ) {
-
-    const replyMessage =
-      `Your appointment has been rescheduled to ${bookingResult.day} at ${bookingResult.time}.`;
-
-    await sendSMS(
-      phone,
-      replyMessage
-    );
-
-    await saveConversation(
-      phone,
-      "assistant",
-      replyMessage
-    );
   }
-}
-
-else if (
-bookingResult.intent ===
-"GENERAL_QUESTION"
-) {
-
-let replyMessage = "";
-
-if (
-bookingResult.language ===
-"Chinese"
-) {
-
-replyMessage =
-
-`您好，欢迎联系 AcuTherapy Clinics。
-
-请问我们今天如何帮助您？
-
-您可以：
-
-• 预约治疗
-• 更改预约
-• 取消预约
-• 咨询针灸或按摩
-• 咨询保险
-• 查询诊所地址`;
-
-}
-
-else if (
-bookingResult.language ===
-"Spanish"
-) {
-
-replyMessage =
-
-`Hola, gracias por contactar AcuTherapy Clinics.
-
-¿Cómo podemos ayudarle hoy?
-
-Puede:
-
-• Programar una cita
-• Cambiar una cita
-• Cancelar una cita
-• Preguntar sobre tratamientos
-• Consultar seguros
-• Solicitar nuestras ubicaciones`;
-
-}
-
-else if (
-bookingResult.language ===
-"Japanese"
-) {
-
-replyMessage =
-
-`AcuTherapy Clinicsへようこそ。
-
-本日はどのようなご用件でしょうか。
-
-• ご予約
-• 予約変更
-• 予約キャンセル
-• 治療内容について
-• 保険について
-• クリニック所在地について`;
-
-}
-
-else if (
-bookingResult.language ===
-"Korean"
-) {
-
-replyMessage =
-
-`AcuTherapy Clinics에 문의해 주셔서 감사합니다.
-
-어떤 도움을 드릴까요?
-
-• 예약
-• 예약 변경
-• 예약 취소
-• 치료 문의
-• 보험 문의
-• 위치 문의`;
-
-}
-
-else {
-
-replyMessage =
-
-`Aloha! This is AcuTherapy Clinics.
-
-How may we help you today?
-
-You may:
-
-• Schedule an appointment
-• Reschedule an appointment
-• Cancel an appointment
-• Ask about our services
-• Ask about insurance
-• Ask for our locations`;
-
-}
-
-await sendSMS(
-phone,
-replyMessage
-);
-
-await saveConversation(
-phone,
-"assistant",
-replyMessage
-);
-}
-
-else if (
-bookingResult.intent ===
-"LOCATION_QUESTION"
-) {
-
-let replyMessage = "";
-
-if (
-bookingResult.language ===
-"Chinese"
-) {
-
-replyMessage =
-
-`AcuTherapy Clinics
-
-檀香山诊所：
-1650 Liliha St Suite 208
-Honolulu HI 96817
-
-Aiea诊所：
-98-211 Pali Momi St Suite 604
-Aiea HI 96701
-
-电话：
-808-528-7177`;
-
-}
-
-else if (
-bookingResult.language ===
-"Spanish"
-) {
-
-replyMessage =
-
-`AcuTherapy Clinics
-
-Ubicación Honolulu:
-1650 Liliha St Suite 208
-Honolulu HI 96817
-
-Ubicación Aiea:
-98-211 Pali Momi St Suite 604
-Aiea HI 96701
-
-Teléfono:
-808-528-7177`;
-
-}
-
-else if (
-bookingResult.language ===
-"Japanese"
-) {
-
-replyMessage =
-
-`AcuTherapy Clinics
-
-ホノルル院：
-1650 Liliha St Suite 208
-Honolulu HI 96817
-
-アイエア院：
-98-211 Pali Momi St Suite 604
-Aiea HI 96701
-
-電話：
-808-528-7177`;
-
-}
-
-else if (
-bookingResult.language ===
-"Korean"
-) {
-
-replyMessage =
-
-`AcuTherapy Clinics
-
-호놀룰루 지점:
-1650 Liliha St Suite 208
-Honolulu HI 96817
-
-아이에아 지점:
-98-211 Pali Momi St Suite 604
-Aiea HI 96701
-
-전화:
-808-528-7177`;
-
-}
-
-else {
-
-replyMessage =
-
-`AcuTherapy Clinics
-
-Honolulu:
-1650 Liliha St Suite 208
-Honolulu HI 96817
-
-Aiea:
-98-211 Pali Momi St Suite 604
-Aiea HI 96701
-
-Phone:
-808-528-7177`;
-
-}
-
-await sendSMS(
-phone,
-replyMessage
-);
-
-await saveConversation(
-phone,
-"assistant",
-replyMessage
-);
-}
-
-else if (
-bookingResult.intent ===
-"PRICE_QUESTION"
-) {
-
-let replyMessage = "";
-
-if (
-bookingResult.language ===
-"Chinese"
-) {
-
-replyMessage =
-
-`我们接受：
-
-• 医疗保险
-• VA Community Care
-• 工伤保险
-• 车祸保险
-• 自费患者
-
-为了提供准确费用，请告知：
-
-• 针灸或按摩
-• 保险类型
-• 新患者或旧患者
-
-电话：
-808-528-7177`;
-
-}
-
-else if (
-bookingResult.language ===
-"Spanish"
-) {
-
-replyMessage =
-
-`Aceptamos:
-
-• Seguros médicos
-• VA Community Care
-• Compensación laboral
-• Accidentes automovilísticos
-• Pacientes privados
-
-Para proporcionar información de precios, indique:
-
-• Acupuntura o masaje
-• Tipo de seguro
-• Paciente nuevo o existente
-
-Teléfono:
-808-528-7177`;
-
-}
-
-else if (
-bookingResult.language ===
-"Japanese"
-) {
-
-replyMessage =
-
-`以下に対応しております：
-
-• 医療保険
-• VA Community Care
-• 労災
-• 自動車事故
-• 自費診療
-
-料金案内のため以下をお知らせください：
-
-• 鍼治療またはマッサージ
-• 保険の種類
-• 初診または再診
-
-電話：
-808-528-7177`;
-
-}
-
-else if (
-bookingResult.language ===
-"Korean"
-) {
-
-replyMessage =
-
-`다음 환자를 받고 있습니다:
-
-• 건강보험
-• VA Community Care
-• 산재보험
-• 교통사고
-• 자비 부담 환자
-
-정확한 비용 안내를 위해 알려주세요:
-
-• 침 치료 또는 마사지
-• 보험 종류
-• 신규 환자 또는 기존 환자
-
-전화:
-808-528-7177`;
-
-}
-
-else {
-
-replyMessage =
-
-`We accept:
-
-• Insurance Patients
-• VA Community Care
-• Workers Compensation
-• Auto Injury Claims
-• Self-Pay Patients
-
-To provide pricing information, please let us know:
-
-• Acupuncture or massage
-• Insurance type
-• New or existing patient
-
-Phone:
-808-528-7177`;
-
-}
-
-await sendSMS(
-phone,
-replyMessage
-);
-
-await saveConversation(
-phone,
-"assistant",
-replyMessage
-);
-}
-
-else if (
-bookingResult.intent ===
-"INSURANCE_QUESTION"
-) {
-
-let replyMessage = "";
-
-if (
-bookingResult.language ===
-"Chinese"
-) {
-
-replyMessage =
-
-`我们接受多种保险计划，包括 HMSA 以及通过 TriWest 的 VA Community Care。
-
-请提供您的保险信息，或致电：
-
-808-528-7177`;
-
-}
-
-else if (
-bookingResult.language ===
-"Spanish"
-) {
-
-replyMessage =
-
-`Aceptamos muchos planes de seguro, incluyendo HMSA y VA Community Care a través de TriWest.
-
-Por favor proporcione la información de su seguro o llame al:
-
-808-528-7177`;
-
-}
-
-else if (
-bookingResult.language ===
-"Japanese"
-) {
-
-replyMessage =
-
-`HMSAおよびTriWest経由のVA Community Careを含む多くの保険に対応しております。
-
-保険情報をご提供いただくか、お電話ください。
-
-808-528-7177`;
-
-}
-
-else if (
-bookingResult.language ===
-"Korean"
-) {
-
-replyMessage =
-
-`저희는 HMSA 및 TriWest를 통한 VA Community Care를 포함한 다양한 보험을 받고 있습니다.
-
-보험 정보를 보내주시거나 아래로 연락해 주세요.
-
-808-528-7177`;
-
-}
-
-else {
-
-replyMessage =
-
-`We accept many insurance plans including HMSA and VA Community Care through TriWest.
-
-Please provide your insurance information or call 808-528-7177 and our staff will be happy to assist you.`;
-
-}
-
-await sendSMS(
-phone,
-replyMessage
-);
-
-await saveConversation(
-phone,
-"assistant",
-replyMessage
-);
-}
-
-else if (
-bookingResult.intent ===
-"NEW_PATIENT_QUESTION"
-) {
-
-let replyMessage = "";
-
-if (
-bookingResult.language ===
-"Chinese"
-) {
-
-replyMessage =
-
-`欢迎来到 AcuTherapy Clinics。
-
-首次就诊请携带：
-
-• 身份证件
-• 保险卡（如适用）
-• 转诊或理赔资料
-• 提前10分钟到达
-
-电话：
-808-528-7177`;
-
-}
-
-else if (
-bookingResult.language ===
-"Spanish"
-) {
-
-replyMessage =
-
-`Bienvenido a AcuTherapy Clinics.
-
-Para su primera visita traiga:
-
-• Identificación con foto
-• Tarjeta de seguro
-• Referencia o reclamación
-• Llegue 10 minutos antes
-
-Teléfono:
-808-528-7177`;
-
-}
-
-else if (
-bookingResult.language ===
-"Japanese"
-) {
-
-replyMessage =
-
-`AcuTherapy Clinicsへようこそ。
-
-初回受診時は以下をご持参ください：
-
-• 写真付き身分証明書
-• 保険証
-• 紹介状または請求書類
-• 10分前到着
-
-電話：
-808-528-7177`;
-
-}
-
-else if (
-bookingResult.language ===
-"Korean"
-) {
-
-replyMessage =
-
-`AcuTherapy Clinics에 오신 것을 환영합니다.
-
-첫 방문 시 준비물:
-
-• 신분증
-• 보험 카드
-• 의뢰서 또는 청구 정보
-• 10분 일찍 도착
-
-전화:
-808-528-7177`;
-
-}
-
-else {
-
-replyMessage =
-
-`Welcome to AcuTherapy Clinics.
-
-For your first visit:
-
-• Bring a photo ID
-• Bring your insurance card (if applicable)
-• Bring any referral or claim information
-• Arrive 10 minutes early
-
-Phone:
-808-528-7177`;
-
-}
-
-await sendSMS(
-phone,
-replyMessage
-);
-
-await saveConversation(
-phone,
-"assistant",
-replyMessage
-);
-}
-
-else if (
-bookingResult.intent ===
-"KB_ANSWER"
-) {
-
-let replyMessage =
-await generateNaturalKBResponse(
-  message,
-  bookingResult.answer || "",
-  bookingResult.language || "English"
-);
-
-try {
-
-const aiResponse =
-await fetch(
-`${process.env.NEXT_PUBLIC_SITE_URL}/api/sms-agent`,
-{
-method: "POST",
-headers: {
-"Content-Type":
-"application/json",
-},
-body: JSON.stringify({
-
-patientMessage:
-message,
-
-knowledge:
-bookingResult.answer,
-
-language:
-bookingResult.language ||
-"English",
-
-url:
-bookingResult.url ||
-
-"",
-
-}),
-}
-);
-
-const aiResult =
-await aiResponse.json();
-
-if (
-aiResult.reply
-) {
-replyMessage =
-aiResult.reply;
-}
-
-} catch (error) {
-
-console.error(
-"AI RESPONSE ERROR",
-error
-);
-
-}
-
-if (
-bookingResult.url
-) {
-
-replyMessage +=
-`\n\nLearn more:\n${bookingResult.url}`;
-
-}
-
-await sendSMS(
-phone,
-replyMessage
-);
-
-await saveConversation(
-phone,
-"assistant",
-replyMessage
-);
-}
-
-else if (
-bookingResult.intent ===
-"SERVICE_QUESTION"
-) {
-
-const replyMessage =
-
-`We offer:
-
-• Acupuncture
-• Medical Massage
-• Fire Cupping
-• Auto Injury Rehabilitation
-• Workers Compensation Treatment
-• VA Community Care Acupuncture
-• Pain Management
-
-Phone:
-808-528-7177`;
-
-await sendSMS(
-phone,
-replyMessage
-);
-
-await saveConversation(
-phone,
-"assistant",
-replyMessage
-);
-}
-else if (
-bookingResult.intent ===
-"CLARIFICATION_NEEDED"
-) {
-
-let replyMessage = "";
-
-if (
-bookingResult.language ===
-"Chinese"
-) {
-
-replyMessage =
-
-`请问您需要哪方面帮助？
-
-• 预约治疗
-• 更改预约
-• 取消预约
-• 保险咨询
-• 治疗咨询
-• 诊所地址`;
-
-}
-
-else if (
-bookingResult.language ===
-"Spanish"
-) {
-
-replyMessage =
-
-`¿Cómo podemos ayudarle?
-
-• Programar una cita
-• Cambiar una cita
-• Cancelar una cita
-• Preguntas sobre seguro
-• Preguntas sobre tratamiento
-• Ubicación de la clínica`;
-
-}
-
-else if (
-bookingResult.language ===
-"Japanese"
-) {
-
-replyMessage =
-
-`どのようなご用件でしょうか。
-
-• ご予約
-• 予約変更
-• 予約キャンセル
-• 保険について
-• 治療について
-• クリニック所在地`;
-
-}
-
-else if (
-bookingResult.language ===
-"Korean"
-) {
-
-replyMessage =
-
-`어떤 도움이 필요하신가요?
-
-• 예약
-• 예약 변경
-• 예약 취소
-• 보험 문의
-• 치료 문의
-• 위치 문의`;
-
-}
-
-else {
-
-replyMessage =
-
-`How may we help you today?
-
-• Schedule an appointment
-• Reschedule an appointment
-• Cancel an appointment
-• Insurance question
-• Treatment question
-• Clinic location`;
-
-}
-
-await sendSMS(
-phone,
-replyMessage
-);
-
-await saveConversation(
-phone,
-"assistant",
-replyMessage
-);
-}
-
-else if (
-bookingResult.intent ===
-"CLINIC_INFO_QUESTION"
-) {
-
-const replyMessage =
-
-`Aloha!
-
-I am Emma, the AI Front Desk for AcuTherapy Clinics.
-
-We provide:
-
-• Acupuncture
-• Medical Massage
-• Fire Cupping
-• Auto Injury Rehabilitation
-• Workers Compensation Treatment
-• VA Community Care Acupuncture
-
-Locations:
-
-Honolulu
-1650 Liliha St Suite 208
-
-Aiea
-98-211 Pali Momi St Suite 604
-
-Phone:
-808-528-7177`;
-
-await sendSMS(
-phone,
-replyMessage
-);
-
-await saveConversation(
-phone,
-"assistant",
-replyMessage
-);
-}
-
-else if (
-bookingResult.intent ===
-"BUSINESS_HOURS_QUESTION"
-) {
-
-const replyMessage =
-
-`Our current office hours are:
-
-Monday - Saturday
-9:00 AM - 1:00 PM
-
-Phone:
-808-528-7177`;
-
-await sendSMS(
-phone,
-replyMessage
-);
-
-await saveConversation(
-phone,
-"assistant",
-replyMessage
-);
-}
-
-else if (
-bookingResult.intent ===
-"AVAILABILITY_QUESTION"
-) {
-
-const slotsResponse =
-await fetch(
-`${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots`
-);
-
-const slotsResult =
-await slotsResponse.json();
-
-const slots =
-slotsResult.slots || [];
-
-const replyMessage =
-
-`Our next available appointments are:
-
-${slots
-.map(
-(slot: string) =>
-`• ${slot}`
-)
-.join("\n")}
-
-Please reply with the time that works best.`;
-
-await sendSMS(
-phone,
-replyMessage
-);
-
-await saveConversation(
-phone,
-"assistant",
-replyMessage
-);
-}
-
-else if (
-bookingResult.intent ===
-"CALL_REQUEST"
-) {
-
-const replyMessage =
-
-`A staff member will be happy to assist you.
-
-Phone:
-808-528-7177
-
-Business Hours:
-Monday - Saturday
-9:00 AM - 1:00 PM`;
-
-await sendSMS(
-phone,
-replyMessage
-);
-
-await saveConversation(
-phone,
-"assistant",
-replyMessage
-);
-}
-
-else if (
-bookingResult.intent ===
-"TRANSFER_TO_HUMAN"
-) {
-
-const replyMessage =
-
-`Thank you for contacting AcuTherapy Clinics.
-
-A staff member will contact you shortly.
-
-Phone:
-808-528-7177`;
-
-await sendSMS(
-phone,
-replyMessage
-);
-
-await saveConversation(
-phone,
-"assistant",
-replyMessage
-);
-}
-
-return NextResponse.json({
-  success: true,
-});
-
-} catch (error) {
-
-console.error(
-  "sms webhook error",
-  error
-);
-
-return NextResponse.json(
-  {
-    success: false,
-  },
-  {
-    status: 500,
-  }
-);
-
-}
 }

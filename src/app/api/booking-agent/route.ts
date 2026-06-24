@@ -1,837 +1,183 @@
 import { NextRequest, NextResponse } from "next/server";
 import { openai } from "@/lib/openai";
-import {
-  getConversationHistory,
-} from "@/lib/conversation";
+import { getConversationHistory } from "@/lib/conversation";
 
-export async function POST(
-  req: NextRequest
-) {
+export async function POST(req: NextRequest) {
   try {
+    const body = await req.json();
+    const message = body.message || body.text || "";
+    const phone = body.phone || "";
 
-    const body =
-      await req.json();
+    const history = phone ? await getConversationHistory(phone, 10) : [];
+    const conversationText = history
+      .map((h: any) => `${h.role.toUpperCase()}: ${h.message}`)
+      .join("\n");
 
-    const message =
-  body.message ||
-  body.text ||
-  "";
+    console.log("OPENAI KEY PREFIX:", process.env.OPENAI_API_KEY?.slice(0, 20));
+    console.log("OPENAI KEY LENGTH:", process.env.OPENAI_API_KEY?.length);
 
-    const phone =
-      body.phone || "";
+    const classificationPrompt = `
+You are an AI assistant designed to classify incoming SMS messages for AcuTherapy Clinics.
+Your ONLY job is to analyze the conversation history and the latest message, and return a clean JSON object with the classification.
 
-    const history =
-      phone
-        ? await getConversationHistory(
-            phone,
-            10
-          )
-        : [];
+Do NOT include any conversational filler, explanations, or markdown formatting. Return ONLY the JSON object.
 
-    const conversationText =
-      history
-        .map(
-          (h: any) =>
-            `${h.role.toUpperCase()}: ${h.message}`
-        )
-        .join("\n");
+### INTENTS:
+1. "BOOK_APPOINTMENT": The customer explicitly wants to book or schedule a new appointment.
+2. "CHECK_AVAILABILITY": The customer is asking about open timeslots, availability, or asking if we have openings on a certain day.
+3. "RESCHEDULE_APPOINTMENT": The customer wants to move or reschedule their existing appointment to another time/day.
+4. "CANCEL_APPOINTMENT": The customer wants to cancel their existing appointment.
+5. "KB_QUESTION": The customer is asking about symptoms, pain, injuries, treatments, insurance, pricing, parking, referral requirements, or general clinic services.
+6. "CLINIC_INFO_QUESTION": The customer is asking who you are, what clinic this is, or asking for general information about the clinic.
+7. "BUSINESS_HOURS_QUESTION": The customer is asking when the clinic is open, what the office hours are, or if we are open today.
+8. "AVAILABILITY_QUESTION": The customer is asking about next available appointments in general or next openings.
+9. "CALL_REQUEST": The customer wants someone to call them or wants to talk on the phone.
+10. "TRANSFER_TO_HUMAN": The customer is complaining, asking for a refund, mentioning a lawyer/lawsuit, or asking for complex medical diagnosis/advice.
+11. "GENERAL_QUESTION": Default for general greetings, or general statements like "Ok", "Thanks", "Hello".
+12. "CLARIFICATION_NEEDED": When the input is completely garbled, unclear, or impossible to classify (e.g. "???", "asdf").
 
-// KB Search First
-/*
-const kbResponse = await fetch(
-  `${protocol}://${host}/api/search-kb`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        question: message,
-      }),
-    }
-  );
-
-  const kbResult =
-    await kbResponse.json();
-
-  console.log(
-    "KB RESULT:",
-    kbResult
-  );
-
-  if (
-    kbResult.found === true
-  ) {
-    return NextResponse.json({
-      intent: "KB_ANSWER",
-      answer: kbResult.answer,
-      source: kbResult.source,
-    });
-  }
-
-} catch (error) {
-  console.error(
-    "KB Search Failed:",
-    error
-  );
-}
-*/
-
-console.log(
-  "OPENAI KEY PREFIX:",
-  process.env.OPENAI_API_KEY?.slice(0, 20)
-);
-console.log(
-  "OPENAI KEY LENGTH:",
-  process.env.OPENAI_API_KEY?.length
-);
-    const response =
-      await openai.responses.create({
-        model: "gpt-4.1-mini",
-
-        input: `
-You are Emma, the AI Front Desk for AcuTherapy Clinics.
-
-Your role is not simply to classify messages.
-
-Your role is to understand patients, communicate naturally, and help them receive appropriate care.
-
-Goals:
-
-1. Understand what the patient actually needs.
-
-2. Detect the patient's language and always respond in the same language.
-
-3. Sound warm, professional, helpful, and human.
-
-4. Think like an experienced medical front desk coordinator.
-
-5. Use conversation history to understand context.
-
-6. Ask clarifying questions when needed.
-
-7. Never sound robotic.
-
-8. Never simply repeat database answers.
-
-9. Use clinic knowledge as supporting information.
-
-10. Guide patients toward scheduling when appropriate.
-
-Communication Style:
-
-* Friendly
-* Professional
-* Compassionate
-* Concise
-* Natural
-
-Do not sound like a chatbot.
-
-Do not sound like an automated system.
-
-Respond the way a highly trained clinic coordinator would respond.
-
-
-========================================
-CLINIC INFORMATION
-==================
-
-Honolulu Office:
-1650 Liliha St Suite 208
-Honolulu HI 96817
-
-Aiea Office:
-98-211 Pali Momi St Suite 604
-Aiea HI 96701
-
-Phone:
-808-528-7177
-
-Services:
-
-* Acupuncture
-* Medical Massage
-* Fire Cupping
-* Auto Injury Rehabilitation
-* Workers Compensation Treatment
-* VA Community Care Acupuncture
-* Pain Management
-
-Questions about clinic location include:
-
-Where are you located
-Where is your office
-Where is your clinic
-Clinic address
-Location
-Directions
-How do I find you
-Where can I find you
-What is your address
-Where are you based
-Where are your offices
-How do I get there
-
-========================================
-CLINIC INFO QUESTIONS
-========================================
-
-Examples:
-
-What is your name?
-
-Who are you?
-
-What clinic is this?
-
-Tell me about your clinic.
-
-Who am I speaking with?
-
-Are you a real person?
-
-Chinese:
-
-你叫什么
-
-你是谁
-
-你们是什么诊所
-
-你是机器人吗
-
-Spanish:
-
-Como te llamas
-
-Quien eres
-
-Japanese:
-
-あなたの名前は
-
-あなたは誰ですか
-
-Korean:
-
-이름이 뭐예요
-
-당신은 누구입니까
-
-Return:
-
+### OUTPUT JSON FORMAT:
+For standard queries:
 {
-"intent":"CLINIC_INFO_QUESTION",
-"language":"DetectedLanguage"
+  "intent": "INTENT_NAME",
+  "language": "DetectedLanguage"
 }
 
-IMPORTANT
-
-Questions asking who you are, your name, what clinic this is, or information about AcuTherapy Clinics are ALWAYS:
-
-CLINIC_INFO_QUESTION
-
-Never classify them as:
-
-GENERAL_QUESTION
-
-========================================
-LANGUAGE
-========================================
-
-Always detect the customer's language.
-
-Every JSON response MUST include:
-
-"language"
-
-Supported values:
-
-English
-Chinese
-Spanish
-Japanese
-Korean
-
-If uncertain, use English.
-
-Examples:
-
-Hello
-
+If the intent is BOOK_APPOINTMENT, CHECK_AVAILABILITY, or RESCHEDULE_APPOINTMENT, extract "day" and "time" if present:
 {
-"intent":"GENERAL_QUESTION",
-"language":"English"
+  "intent": "INTENT_NAME",
+  "language": "DetectedLanguage",
+  "day": "DayOfWeekOrDate", // e.g. "Friday" or "Monday" or null if missing. Normalize to capitalized day name (e.g. "Monday").
+  "time": "TimeSlot" // e.g. "10am" or "12pm" or null if missing.
 }
 
-Hola
-
+If day/time are missing when they want to book:
 {
-"intent":"GENERAL_QUESTION",
-"language":"Spanish"
+  "intent": "BOOK_APPOINTMENT",
+  "language": "DetectedLanguage",
+  "needs_clarification": true,
+  "missing": "day,time" // or "day" or "time" depending on what is missing
 }
 
-你好
+### LANGUAGES SUPPORTED:
+English, Chinese, Spanish, Japanese, Korean. Detect and return the language name.
 
-{
-"intent":"GENERAL_QUESTION",
-"language":"Chinese"
-}
-
-こんにちは
-
-{
-"intent":"GENERAL_QUESTION",
-"language":"Japanese"
-}
-
-안녕하세요
-
-{
-"intent":"GENERAL_QUESTION",
-"language":"Korean"
-}
-
-Always detect customer language.
-
-Return:
-
-"language"
-
-Supported:
-
-English
-Chinese
-Spanish
-Japanese
-Korean
+### IMPORTANT RULES:
+- Never invent missing information.
+- Never guess missing days or times.
+- Never assume AM or PM unless stated.
+- Output ONLY the JSON block. Do not include markdown codeblocks (e.g. \`\`\`json).
 
 ========================================
-AI UNDERSTANDING
-================
-
-Your job is to understand what the customer actually wants.
-
-Do not rely on keywords alone.
-
-Use conversation history.
-
-Extract:
-
-intent
-language
-
-If applicable:
-
-symptom
-insurance
-
-========================================
-INTENTS
-=======
-
-BOOK_APPOINTMENT
-
-CHECK_AVAILABILITY
-
-RESCHEDULE_APPOINTMENT
-
-CANCEL_APPOINTMENT
-
-KB_QUESTION
-
-AI_RESPONSE
-
-CLINIC_INFO_QUESTION
-
-BUSINESS_HOURS_QUESTION
-
-AVAILABILITY_QUESTION
-
-CALL_REQUEST
-
-TRANSFER_TO_HUMAN
-
-GENERAL_QUESTION
-
-CLARIFICATION_NEEDED
-
-UNKNOWN
-
-========================================
-BUSINESS HOURS QUESTIONS
-========================================
-
-Examples:
-
-Are you open today?
-
-What are your hours?
-
-What time do you open?
-
-What time do you close?
-
-When are you open?
-
-Return:
-
-{
-"intent":"BUSINESS_HOURS_QUESTION",
-"language":"English"
-}
-
-========================================
-AVAILABILITY QUESTIONS
-========================================
-
-Examples:
-
-What is your earliest availability?
-
-What is your next appointment?
-
-When do you have times?
-
-Do you have openings?
-
-Any openings this week?
-
-Earliest appointment?
-
-Next available appointment?
-
-Return:
-
-{
-"intent":"AVAILABILITY_QUESTION",
-"language":"English"
-}
-========================================
-KB QUESTIONS
-========================================
-
-Use KB_QUESTION for ANY clinic knowledge question.
-
-This includes:
-
-• symptoms
-• pain
-• injuries
-• conditions
-• treatments
-• acupuncture
-• massage
-• cupping
-• rehabilitation
-• insurance
-• HMSA
-• Medicare
-• VA
-• TriWest
-• Workers Compensation
-• Auto Injury
-• referrals
-• pricing
-• parking
-• directions
-• clinic services
-• new patient questions
-
-Patients do not always ask direct questions.
-
-Examples:
-
-My back hurts.
-
-My neck hurts.
-
-I have migraines.
-
-I can't sleep.
-
-I'm a veteran.
-
-My VA doctor sent me.
-
-I got hurt at work.
-
-I was in a car accident.
-
-I have HMSA.
-
-I need acupuncture.
-
-I'm looking for treatment.
-
-Do you have parking?
-
-Where are you located?
-
-How much is acupuncture?
-
-Do I need a referral?
-
-Return:
-
-{
-"intent":"KB_QUESTION",
-"language":"DetectedLanguage"
-}
-
-========================================
-IMPORTANT
-========================================
-
-Describing symptoms, injuries, insurance status,
-veteran status, work injuries, or accident history
-does NOT automatically mean the patient wants
-an appointment.
-
-Examples:
-
-My back hurts.
-
-I'm a veteran.
-
-I got hurt at work.
-
-I was in a car accident.
-
-Return:
-
-{
-"intent":"KB_QUESTION",
-"language":"DetectedLanguage"
-}
-
-Only use BOOK_APPOINTMENT when the patient
-clearly requests scheduling.
-
-========================================
-BOOKING
-=======
-
-If customer clearly wants an appointment:
-
-{
-"intent":"BOOK_APPOINTMENT",
-"language":"English"
-}
-
-Examples:
-
-I need an appointment.
-
-Can I come in next week?
-
-Schedule me.
-
-Book me.
-
-If day or time missing:
-
-{
-"intent":"BOOK_APPOINTMENT",
-"language":"English",
-"needs_clarification":true,
-"missing":"day,time"
-}
-
-========================================
-CLARIFICATION
-========================================
-
-Only use CLARIFICATION_NEEDED when it is impossible
-to determine what the patient wants.
-
-Examples:
-
-???
-
-asdf
-
-ok
-
-hello?
-
-Return:
-
-{
-"intent":"CLARIFICATION_NEEDED",
-"language":"DetectedLanguage"
-}
-
-========================================
-TRANSFER TO HUMAN
-=================
-
-Refund
-
-Complaint
-
-Attorney
-
-Lawyer
-
-Lawsuit
-
-Medical diagnosis
-
-Medication advice
-
-Return:
-
-{
-"intent":"TRANSFER_TO_HUMAN",
-"language":"English"
-}
-
-========================================
-RULES
-=====
-If information required to complete an action is missing:
-
-Return:
-
-{
-"intent":"BOOK_APPOINTMENT",
-"language":"English",
-"needs_clarification":true,
-"missing":"day,time"
-}
-
-Never invent missing information.
-
-Never guess missing information.
-
-Use conversation history whenever possible.
-
-
-Always include:
-
-"language"
-
-in every response.
-
-Supported languages:
-
-English
-Chinese
-Spanish
-Japanese
-Korean
-
-If uncertain, use English.
-
-Never invent dates.
-
-Never invent times.
-
-Never assume AM or PM.
-
-Never convert dates to weekdays.
-
-Never convert weekdays to dates.
-
-Never infer information not explicitly stated.
-
 Conversation History:
-
 ${conversationText}
 
 Latest Message:
-
 ${message}
+`;
 
-`,
-      });
+    const response = await openai.responses.create({
+      model: "gpt-4o-mini",
+      input: classificationPrompt,
+    });
 
-    console.log(
-      "GPT RAW:",
-      response.output_text
-    );
+    console.log("GPT RAW:", response.output_text);
 
-    let text =
-      response.output_text
-        .trim();
-
+    let text = response.output_text.trim();
     text = text
-      .replace(
-        /```json/g,
-        ""
-      )
-      .replace(
-        /```/g,
-        ""
-      )
+      .replace(/```json/g, "")
+      .replace(/```/g, "")
       .trim();
 
-   const result =
-  JSON.parse(text);
+    const result = JSON.parse(text);
 
-console.log(
-  "===================="
-);
+    console.log("====================");
+    console.log("GPT RESULT");
+    console.log(JSON.stringify(result, null, 2));
+    console.log("====================");
 
-console.log(
-  "GPT RESULT"
-);
+    if (result.intent === "KB_QUESTION") {
+      const host = req.headers.get("host") || "localhost:3000";
+      const protocol = host.includes("localhost") ? "http" : "https";
 
-console.log(
-  JSON.stringify(
-    result,
-    null,
-    2
-  )
-);
+      const kbResponse = await fetch(
+        `${protocol}://${host}/api/search-kb`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            question: message,
+          }),
+        }
+      );
 
-console.log(
-  "===================="
-);
+      const kbResult = await kbResponse.json();
+      console.log("KB SEARCH RESULT:", kbResult);
 
-if (
-  result.intent ===
-  "KB_QUESTION"
-){
+      if (kbResult.found === true) {
+        let translatedAnswer = kbResult.answer;
 
-const host =
-req.headers.get("host");
-
-const protocol =
-host?.includes("localhost")
-? "http"
-: "https";
-
-const kbResponse =
-await fetch(
-`${protocol}://${host}/api/search-kb`,
-{
-method: "POST",
-headers: {
-"Content-Type":
-"application/json",
-},
-body: JSON.stringify({
-question:
-message,
-}),
-}
-);
-
-const kbResult =
-await kbResponse.json();
-
-console.log(
-"KB SEARCH:",
-message
-);
-
-if (
-kbResult.found === true
-) {
-
-let translatedAnswer =
-kbResult.answer;
-
-if (
-result.language &&
-result.language !==
-"English"
-) {
-
-const translation =
-await openai.responses.create({
-model: "gpt-4.1-mini",
-input: `
-
+        if (result.language && result.language !== "English") {
+          const translation = await openai.responses.create({
+            model: "gpt-4o-mini",
+            input: `
 Translate the following health information into ${result.language}.
-
-Only return the translation.
-
-Do not add explanations.
+Only return the translation. Do not add explanations.
 
 Text:
-
 ${kbResult.answer}
-
 `,
-});
+          });
 
-translatedAnswer =
-translation.output_text
-.trim();
-}
+          translatedAnswer = translation.output_text.trim();
+        }
 
-return NextResponse.json({
-success: true,
-intent: "KB_ANSWER",
-language:
-result.language ||
-"English",
-answer:
-translatedAnswer,
-url:
-kbResult.url,
-source:
-kbResult.source,
-originalMessage:
-message,
-});
-}
+        return NextResponse.json({
+          success: true,
+          intent: "KB_ANSWER",
+          language: result.language || "English",
+          answer: translatedAnswer,
+          url: kbResult.url,
+          source: kbResult.source,
+          originalMessage: message,
+        });
+      }
 
-return NextResponse.json({
-success: true,
-intent: "CLARIFICATION_NEEDED",
-language:
-result.language ||
-"English",
-originalMessage:
-message,
-});
-}
+      return NextResponse.json({
+        success: true,
+        intent: "CLARIFICATION_NEEDED",
+        language: result.language || "English",
+        originalMessage: message,
+      });
+    }
 
-if (
-  result.intent ===
-    "BOOK_APPOINTMENT" ||
+    if (
+      result.intent === "BOOK_APPOINTMENT" ||
+      result.intent === "CHECK_AVAILABILITY" ||
+      result.intent === "RESCHEDULE_APPOINTMENT" ||
+      result.intent === "CANCEL_APPOINTMENT"
+    ) {
+      return NextResponse.json({
+        success: true,
+        ...result,
+        originalMessage: message,
+      });
+    }
 
-  result.intent ===
-    "CHECK_AVAILABILITY" ||
+    return NextResponse.json({
+      success: true,
+      ...result,
+      originalMessage: message,
+    });
 
-  result.intent ===
-    "RESCHEDULE_APPOINTMENT" ||
-
-  result.intent ===
-    "CANCEL_APPOINTMENT"
-) {
-  return NextResponse.json({
-    success: true,
-    ...result,
-    originalMessage:
-      message,
-  });
-}
-
-return NextResponse.json({
-  success: true,
-  ...result,
-  originalMessage:
-    message,
-});
-
-} catch (err: any) {
-
-    console.error(
-      "BOOKING AGENT ERROR:",
-      err
-    );
-
+  } catch (err: any) {
+    console.error("BOOKING AGENT ERROR:", err);
     return NextResponse.json({
       success: false,
       intent: "UNKNOWN",
-      error:
-        err.message,
+      error: err.message,
     });
   }
 }
