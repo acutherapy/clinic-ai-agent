@@ -126,12 +126,13 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Generate a warm, personalized outreach SMS using Emma
-    const outreachPromptMessage = `Hi ${name}, this is Dr. Cai from AcuTherapy Clinics. I received your request regarding: ${condition || "treatment"}. Here are my openings.`;
+    const outreachPromptMessage = `Website Form Submission - Chief Complaint: ${condition || "treatment"}`;
     
     const message = await generateEmmaResponse({
       patientMessage: outreachPromptMessage,
+      patientName: name,
       conversationHistory: [],
-      intent: "CHECK_AVAILABILITY",
+      intent: "NEW_LEAD_OUTREACH",
       language: "English",
       availableSlots: slots,
     });
