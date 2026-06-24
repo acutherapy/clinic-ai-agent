@@ -59,50 +59,59 @@ export async function POST(req: NextRequest) {
     const bookingResult = await bookingResponse.json();
     console.log("BOOKING RESULT:", JSON.stringify(bookingResult, null, 2));
 
+    // Look up patient name from leads or appointments table for personalized experience
+    let patientName = sms.from?.name || "Patient";
+    let leadRecord: any = null;
+    try {
+      const cleanPhone = phone.replace(/\D/g, "");
+      const cleanPhone10 = cleanPhone.slice(-10);
+
+      // Search leads table first
+      const { data: dbLead } = await supabase
+        .from("leads")
+        .select("*")
+        .or(`phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`)
+        .limit(1)
+        .maybeSingle();
+
+      if (dbLead) {
+        patientName = dbLead.name;
+        leadRecord = dbLead;
+      } else {
+        // Fallback to appointments table
+        const { data: dbAppt } = await supabase
+          .from("appointments")
+          .select("patient_name")
+          .or(`phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`)
+          .limit(1)
+          .maybeSingle();
+        if (dbAppt?.patient_name) {
+          patientName = dbAppt.patient_name;
+        }
+      }
+    } catch (lookupErr) {
+      console.error("Patient name lookup error:", lookupErr);
+    }
+
     // 3. Check if there are attachments (photos/documents)
     const hasAttachments = sms.attachments && sms.attachments.length > 0;
 
     if (hasAttachments) {
       console.log("Inbound message has attachments. Triggering human handoff and doctor notification...");
       
-      // Warm human-like reply based on language
       const humanMessage = bookingResult.language === "Chinese"
-        ? "收到！我已经收到了您发送的图片，并转发给了我们诊所的工作人员。工作人员在确认保险及证件后会尽快与您联系。如有其他问题，欢迎致电 808-528-7177。"
+        ? `收到！${patientName !== "Patient" ? `${patientName}，` : ""}我已经收到了您发送的图片，并转发给了我们诊所的工作人员。工作人员在确认保险及证件后会尽快与您联系。如有其他问题，欢迎致电 808-528-7177。`
         : bookingResult.language === "Spanish"
-        ? "¡Recibido! He recibido las imágenes de sus documentos y las he enviado a nuestro personal. Alguien se comunicará con usted poco después de verificar su cobertura. Si tiene alguna duda, puede llamarnos al 808-528-7177."
+        ? `¡Recibido! ${patientName !== "Patient" ? `${patientName}, h` : "H"}e recibido las imágenes de sus documentos y las he enviado a nuestro personal. Alguien se comunicará con usted poco después de verificar su cobertura. Si tiene alguna duda, puede llamarnos al 808-528-7177.`
         : bookingResult.language === "Japanese"
-        ? "受信しました！ご送付いただいた画像を受け取り、当院のスタッフへ転送いたしました。スタッフが保険等の確認を行い、折り返しご連絡いたします。ご不明な点がございましたら 808-528-7177 までお電話ください。"
+        ? `受信しました！${patientName !== "Patient" ? `${patientName}様、` : ""}ご送付いただいた画像を受け取り、当院のスタッフへ転送いたしました。スタッフが保険等の確認を行い、折り返しご連絡いたします。ご不明な点がございましたら 808-528-7177 までお電話ください。`
         : bookingResult.language === "Korean"
-        ? "수신되었습니다! 보내주신 사진을 수령하여 저희 직원에게 전달했습니다. 보험 및 신원 확인 후 곧 연락드리겠습니다. 문의 사항이 있으시면 808-528-7177로 전화해 주세요."
-        : "Received! I have received your pictures and forwarded them to our office staff. Someone will verify your details and contact you shortly. If you have any questions, feel free to call us at 808-528-7177.";
+        ? `수신되었습니다! ${patientName !== "Patient" ? `${patientName} 님, ` : ""}보내주신 사진을 수령하여 저희 직원에게 전달했습니다. 보험 및 신원 확인 후 곧 연락드리겠습니다. 문의 사항이 있으시면 808-528-7177로 전화해 주세요.`
+        : `Received! ${patientName !== "Patient" ? `${patientName}, I` : "I"} have received your pictures and forwarded them to our office staff. Someone will verify your details and contact you shortly. If you have any questions, feel free to call us at 808-528-7177.`;
 
       // Send to patient
       await sendSMS(phone, humanMessage);
       await saveConversation(phone, "assistant", humanMessage);
-
-      // Look up patient name
-      let patientName = sms.from?.name || "Patient";
-      try {
-        const { data: dbLead } = await supabase
-          .from("leads")
-          .select("name")
-          .eq("phone", phone.replace(/\D/g, "").slice(-10))
-          .limit(1)
-          .single();
-        if (dbLead?.name) {
-          patientName = dbLead.name;
-        } else {
-          const { data: dbAppt } = await supabase
-            .from("appointments")
-            .select("patient_name")
-            .eq("phone", phone)
-            .limit(1)
-            .single();
-          if (dbAppt?.patient_name) {
-            patientName = dbAppt.patient_name;
-          }
-        }
-      } catch (e) {}
 
       // Notify the doctor
       await sendSMS(
@@ -131,7 +140,7 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
                 "Content-Type": "application/json",
               },
               body: JSON.stringify({
-                patientName: sms.from?.name || "Patient",
+                patientName,
                 phone,
                 day: bookingResult.day,
                 time: bookingResult.time,
@@ -147,6 +156,25 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
               appointmentTime: `${bookingResult.day} at ${bookingResult.time}`,
               serviceType: createResult.serviceType,
             };
+
+            // Update lead status in leads table to BOOKED if they are a lead
+            if (leadRecord) {
+              const { error: updateLeadError } = await supabase
+                .from("leads")
+                .update({
+                  status: "BOOKED",
+                  notes: leadRecord.notes 
+                    ? `${leadRecord.notes}\nLead successfully booked appointment on ${new Date().toLocaleString()}`
+                    : `Lead successfully booked appointment on ${new Date().toLocaleString()}`,
+                })
+                .eq("id", leadRecord.id);
+
+              if (updateLeadError) {
+                console.error("Error updating lead to BOOKED status:", updateLeadError);
+              } else {
+                console.log(`Lead status successfully updated to BOOKED for lead ${leadRecord.id}`);
+              }
+            }
           } else {
             actionResult = {
               success: false,
@@ -320,6 +348,7 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
     // 8. Generate a warm, human-like, database-backed response via Emma
     const replyMessage = await generateEmmaResponse({
       patientMessage: message,
+      patientName,
       conversationHistory,
       intent: bookingResult.intent,
       language: bookingResult.language || "English",
@@ -339,30 +368,6 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
     if (needsDoctorNotification) {
       console.log(`Intent is ${bookingResult.intent}. Notifying doctor for human assistance...`);
       
-      // Look up patient name
-      let patientName = sms.from?.name || "Patient";
-      try {
-        const { data: dbLead } = await supabase
-          .from("leads")
-          .select("name")
-          .eq("phone", phone.replace(/\D/g, "").slice(-10))
-          .limit(1)
-          .single();
-        if (dbLead?.name) {
-          patientName = dbLead.name;
-        } else {
-          const { data: dbAppt } = await supabase
-            .from("appointments")
-            .select("patient_name")
-            .eq("phone", phone)
-            .limit(1)
-            .single();
-          if (dbAppt?.patient_name) {
-            patientName = dbAppt.patient_name;
-          }
-        }
-      } catch (e) {}
-
       // Notify the doctor via SMS
       await sendSMS(
         DR_CAI_PHONE,
