@@ -33,7 +33,58 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Fetch availability slots dynamically
+    const cleanPhone = phone.replace(/\D/g, "");
+    const cleanPhone10 = cleanPhone.slice(-10);
+
+    // 1. Check for duplicate leads (same number contacted recently or already booked/contacted)
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    let isDuplicate = false;
+    let duplicateLeadId = "";
+    
+    try {
+      const { data: duplicateLead } = await supabase
+        .from("leads")
+        .select("id")
+        .or(`phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`)
+        .or(`status.eq.CONTACTED,status.eq.BOOKED,created_at.gt.${yesterday}`)
+        .neq("id", record.id || "")
+        .limit(1)
+        .maybeSingle();
+
+      if (duplicateLead) {
+        isDuplicate = true;
+        duplicateLeadId = duplicateLead.id;
+      }
+    } catch (err) {
+      console.error("Error checking for duplicate lead:", err);
+    }
+
+    if (isDuplicate) {
+      console.log(`Duplicate lead detected for phone ${phone}. Skipping automatic outreach.`);
+      const logNotes = `Duplicate lead detected. Already contacted or booked recently (Lead ID: ${duplicateLeadId}). Automatic outreach skipped.`;
+      
+      let finalRecord = record;
+      if (record.id) {
+        const { data } = await supabase
+          .from("leads")
+          .update({
+            notes: record.notes ? `${record.notes}\n${logNotes}` : logNotes
+          })
+          .eq("id", record.id)
+          .select()
+          .single();
+        if (data) finalRecord = data;
+      }
+      
+      return NextResponse.json({
+        success: true,
+        skipped: true,
+        reason: "DUPLICATE",
+        lead: finalRecord
+      });
+    }
+
+    // 2. Fetch availability slots dynamically
     let slots: string[] = [];
     try {
       const response = await fetch(
