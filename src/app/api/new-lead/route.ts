@@ -8,6 +8,10 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
+    // Check if called via Supabase Database Webhook (nested in body.record)
+    const isWebhook = !!body.record;
+    const record = isWebhook ? body.record : body;
+
     const {
       name,
       phone,
@@ -15,7 +19,7 @@ export async function POST(req: NextRequest) {
       email,
       location,
       preferred_contact,
-    } = body;
+    } = record;
 
     if (!name || !phone) {
       return NextResponse.json(
@@ -41,26 +45,33 @@ export async function POST(req: NextRequest) {
       console.error("Error fetching slots for new lead:", err);
     }
 
-    // 2. Save the initial lead record to Supabase first
-    const { data: lead, error: insertError } = await supabase
-      .from("leads")
-      .insert({
-        name,
-        phone,
-        email: email || null,
-        condition: condition || null,
-        location: location || null,
-        preferred_contact: preferred_contact || "Text",
-        status: "NEW",
-        source: "WEBSITE",
-        notes: "Lead received from website form.",
-      })
-      .select()
-      .single();
+    let leadId = record.id;
+    let leadNotes = record.notes || "";
 
-    if (insertError) {
-      console.error("Error inserting lead to Supabase:", insertError);
-      throw new Error(`Database insert failed: ${insertError.message}`);
+    // 2. If not triggered by webhook, insert the new lead into Supabase leads table
+    if (!isWebhook) {
+      const { data: lead, error: insertError } = await supabase
+        .from("leads")
+        .insert({
+          name,
+          phone,
+          email: email || null,
+          condition: condition || null,
+          location: location || null,
+          preferred_contact: preferred_contact || "Text",
+          status: "NEW",
+          source: "WEBSITE",
+          notes: "Lead received from website form.",
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error("Error inserting lead to Supabase:", insertError);
+        throw new Error(`Database insert failed: ${insertError.message}`);
+      }
+      leadId = lead.id;
+      leadNotes = lead.notes;
     }
 
     // 3. Generate a warm, personalized outreach SMS using Emma
@@ -76,7 +87,7 @@ export async function POST(req: NextRequest) {
 
     let smsResult: any = null;
     let contactStatus = "CONTACTED";
-    let leadNotes = `Automatically sent initial outreach SMS on ${new Date().toLocaleString()}`;
+    let smsLogNotes = `Automatically sent initial outreach SMS on ${new Date().toLocaleString()}`;
 
     try {
       // 4. Send SMS to the patient
@@ -86,19 +97,19 @@ export async function POST(req: NextRequest) {
       await saveConversation(phone, "assistant", message);
     } catch (smsErr: any) {
       console.error("SMS transmission failed, updating lead status:", smsErr);
-      contactStatus = "NEW"; // Maintain NEW status due to database check constraint
-      leadNotes = `SMS outreach failed on ${new Date().toLocaleString()}. Error: ${smsErr.message}`;
+      contactStatus = "NEW"; // Keep status as NEW if SMS fails
+      smsLogNotes = `SMS outreach failed on ${new Date().toLocaleString()}. Error: ${smsErr.message}`;
     }
 
-    // 6. Update the lead status based on SMS outcome
+    // 6. Update the lead record status and notes based on SMS outcome
     const { data: updatedLead, error: updateError } = await supabase
       .from("leads")
       .update({
         status: contactStatus,
-        notes: lead.notes ? `${lead.notes}\n${leadNotes}` : leadNotes,
+        notes: leadNotes ? `${leadNotes}\n${smsLogNotes}` : smsLogNotes,
         last_contacted_at: smsResult ? new Date().toISOString() : null,
       })
-      .eq("id", lead.id)
+      .eq("id", leadId)
       .select()
       .single();
 
@@ -108,11 +119,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: smsResult ? true : false,
+      isWebhook,
       phone,
       slots,
       smsResult,
-      lead: updatedLead || lead,
-      smsError: smsResult ? null : leadNotes,
+      lead: updatedLead || record,
+      smsError: smsResult ? null : smsLogNotes,
     });
 
   } catch (err: any) {

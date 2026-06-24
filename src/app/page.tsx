@@ -1,48 +1,63 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabase";
 
 export default function Home() {
-
-  const [patientName, setPatientName] =
-    useState("");
-
-  const [phone, setPhone] =
-    useState("");
-
-  const [email, setEmail] =
-    useState("");
-
-  const [complaint, setComplaint] =
-    useState("");
+  const [patientName, setPatientName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [complaint, setComplaint] = useState("");
+  const [loading, setLoading] = useState(false);
 
   async function submitForm() {
-
-    const { error } =
-      await supabase
-        .from("appointments")
-        .insert([
-          {
-            patient_name: patientName,
-            phone: phone,
-            email: email,
-            chief_complaint: complaint,
-            status: "new",
-          },
-        ]);
-
-    if (error) {
-      alert(error.message);
+    if (!patientName || !phone) {
+      alert("Please provide at least a name and phone number.");
       return;
     }
 
-    alert("Appointment Request Submitted");
+    setLoading(true);
+    try {
+      const response = await fetch("/api/new-lead", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: patientName,
+          phone: phone,
+          email: email || null,
+          condition: complaint || null,
+          location: "Honolulu", // Default location
+          preferred_contact: "Text",
+        }),
+      });
 
-    setPatientName("");
-    setPhone("");
-    setEmail("");
-    setComplaint("");
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Submission failed");
+      }
+
+      if (result.success) {
+        alert("Appointment Request Submitted and SMS sent successfully!");
+      } else {
+        alert(
+          `Appointment request recorded in database.\n\nNote: SMS invitation could not be sent: ${
+            result.smsError || "Unknown SMS error"
+          }`
+        );
+      }
+
+      setPatientName("");
+      setPhone("");
+      setEmail("");
+      setComplaint("");
+    } catch (err: any) {
+      console.error(err);
+      alert("Error submitting request: " + err.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -53,47 +68,66 @@ export default function Home() {
         display: "flex",
         flexDirection: "column",
         gap: 12,
+        fontFamily: "system-ui, -apple-system, sans-serif",
+        padding: "0 20px",
       }}
     >
-      <h1>
-        AcuTherapy AI Appointment Agent
-      </h1>
+      <h1>AcuTherapy AI Appointment Agent</h1>
 
-      <input
-        placeholder="Name"
-        value={patientName}
-        onChange={(e) =>
-          setPatientName(e.target.value)
-        }
-      />
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <input
+          placeholder="Name"
+          value={patientName}
+          onChange={(e) => setPatientName(e.target.value)}
+          disabled={loading}
+          style={{ padding: "8px 12px", borderRadius: 4, border: "1px solid #ccc" }}
+        />
 
-      <input
-        placeholder="Phone"
-        value={phone}
-        onChange={(e) =>
-          setPhone(e.target.value)
-        }
-      />
+        <input
+          placeholder="Phone"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          disabled={loading}
+          style={{ padding: "8px 12px", borderRadius: 4, border: "1px solid #ccc" }}
+        />
 
-      <input
-        placeholder="Email"
-        value={email}
-        onChange={(e) =>
-          setEmail(e.target.value)
-        }
-      />
+        <input
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          disabled={loading}
+          style={{ padding: "8px 12px", borderRadius: 4, border: "1px solid #ccc" }}
+        />
 
-      <textarea
-        placeholder="Chief Complaint"
-        value={complaint}
-        onChange={(e) =>
-          setComplaint(e.target.value)
-        }
-      />
+        <textarea
+          placeholder="Chief Complaint / Condition"
+          value={complaint}
+          onChange={(e) => setComplaint(e.target.value)}
+          disabled={loading}
+          style={{
+            padding: "8px 12px",
+            borderRadius: 4,
+            border: "1px solid #ccc",
+            minHeight: 100,
+          }}
+        />
 
-      <button onClick={submitForm}>
-        Submit
-      </button>
+        <button
+          onClick={submitForm}
+          disabled={loading}
+          style={{
+            padding: "10px 16px",
+            borderRadius: 4,
+            border: "none",
+            backgroundColor: loading ? "#999" : "#0070f3",
+            color: "white",
+            fontWeight: "bold",
+            cursor: loading ? "not-allowed" : "pointer",
+          }}
+        >
+          {loading ? "Submitting..." : "Submit"}
+        </button>
+      </div>
     </main>
   );
 }
