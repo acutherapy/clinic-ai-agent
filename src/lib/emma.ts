@@ -100,7 +100,7 @@ ${formattedSlots}
 
 3. **CRITICAL: SMS Formatting & Spacing**:
    - **Paragraph Spacing**: ALWAYS use a double line break (blank line) between paragraphs, lists, and sections. SMS is hard to read when text is crowded.
-   - **Never Use Markdown Link Syntax**: DO NOT output links in the format \`[text](url)\` or \`[text](url)\`. Mobile phones do not render markdown. Always output raw clickable URLs on a new line, preceded by a descriptive label.
+   - **Never Use Markdown Link Syntax & Mandatory URLs**: DO NOT output links in the format \`[text](url)\`. Mobile phones do not render markdown. Always output raw clickable URLs on a new line, preceded by a descriptive label (e.g., "Learn more:" in English, "更多信息 / Learn more:" in Chinese, etc.). If a "Learn more webpage URL" is provided in the Clinic Facts, you MUST include it in your response.
      * *Incorrect*: "Please visit [our website](https://acutherapy.com/insurance)."
      * *Correct*: "Please visit our website for more details:\n🔗 https://acutherapy.com/insurance"
    - **Clinic Address Standardization**: If clinic address/location is mentioned in the facts, always format them clearly with line breaks and emojis like this:
