@@ -324,7 +324,10 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
       "GENERAL_QUESTION",
     ];
 
-    if (kbIntents.includes(bookingResult.intent)) {
+    if (bookingResult.intent === "KB_ANSWER") {
+      kbAnswer = bookingResult.answer || "";
+      kbUrl = bookingResult.url || "";
+    } else if (kbIntents.includes(bookingResult.intent)) {
       try {
         const kbResponse = await fetch(
           `${process.env.NEXT_PUBLIC_SITE_URL}/api/search-kb`,
