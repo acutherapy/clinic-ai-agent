@@ -584,12 +584,8 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
       availableSlots,
     });
 
-    // 9. Customise JaneApp links and apply Medical Safety Guardrails
-    let finalReply = customizeJaneAppUrls(replyMessage, {
-      name: patientName,
-      phone: phone,
-      location: leadRecord?.location || null
-    });
+    // 9. Customise JaneApp links and apply Medical Safety Guardrails (JaneApp customization temporarily disabled per user request)
+    let finalReply = replyMessage;
 
     // Medical Safety Guardrail check
     const restrictedAcupoints = /\b(LI-?4|ST-?36|SP-?6|LV-?3|GB-?20|DU-?20|REN-?4)\b|(穴位|针灸穴|配穴|药方|中药配方)/i;
