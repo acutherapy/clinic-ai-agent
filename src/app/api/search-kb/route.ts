@@ -42,12 +42,24 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Step 1: Fetch all active knowledge base records, ordering by weight_boost if available
+    // Step 1: Fetch all active knowledge base records, ordering by intent_priority descending if available
     let { data, error } = await supabase
       .from("clinic_knowledge_base")
       .select("*")
       .eq("active", true)
-      .order("weight_boost", { ascending: false });
+      .order("intent_priority", { ascending: false });
+
+    // Fallback if the intent_priority column does not exist yet in the database
+    if (error && error.message.includes("intent_priority") && error.message.includes("does not exist")) {
+      console.log("intent_priority column does not exist yet. Falling back to weight_boost query.");
+      const fallbackResult = await supabase
+        .from("clinic_knowledge_base")
+        .select("*")
+        .eq("active", true)
+        .order("weight_boost", { ascending: false });
+      data = fallbackResult.data;
+      error = fallbackResult.error;
+    }
 
     // Fallback if the weight_boost column does not exist yet in the database
     if (error && error.message.includes("weight_boost") && error.message.includes("does not exist")) {
