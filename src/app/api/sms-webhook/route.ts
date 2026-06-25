@@ -568,6 +568,36 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
       }
     }
 
+    // 6b. Secondary check: If no webpage URL is retrieved yet, but the user message mentions a disease/symptom/treatment, query search-kb specifically to fetch a webpage URL
+    const diseaseKeywordsRegex = /(pain|sciatica|headache|migraine|stress|anxiety|insomnia|injury|shoulder|neck|back|knee|arthritis|痛|酸|失眠|压力|受伤|拔罐|cupping)/i;
+    if (!kbUrl && diseaseKeywordsRegex.test(message)) {
+      try {
+        console.log(`Disease keyword detected in message: "${message}". Fetching URL fallback.`);
+        const kbResponse = await fetch(
+          `${process.env.NEXT_PUBLIC_SITE_URL}/api/search-kb`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              question: message,
+            }),
+          }
+        );
+
+        const kbResult = await kbResponse.json();
+        if (kbResult.found && kbResult.url) {
+          kbUrl = kbResult.url;
+          if (!kbAnswer) {
+            kbAnswer = kbResult.answer || "";
+          }
+        }
+      } catch (err) {
+        console.error("Secondary disease URL lookup failed:", err);
+      }
+    }
+
     // 7. Fetch conversation history for assistant reply generation context
     const conversationHistory = phone ? await getConversationHistory(phone, 6) : [];
 
