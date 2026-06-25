@@ -182,130 +182,58 @@ export async function GET(
       });
     }
 
-    if (
-      requestedDay
-    ) {
+    if (requestedDay) {
+      const firstDate = candidates[0]?.dateKey;
+      if (!firstDate) {
+        return NextResponse.json({ slots: [] });
+      }
 
-      const firstDate =
-        candidates[0]
-          .dateKey;
-
-      const sameDay =
-        candidates.filter(
-          (c) =>
-            c.dateKey ===
-            firstDate
-        );
-
-      sameDay.sort(
-        (a, b) =>
-          a.hour -
-          b.hour
+      const sameDay = candidates.filter(
+        (c) => c.dateKey === firstDate
       );
 
+      sameDay.sort((a, b) => a.hour - b.hour);
+
+      // Return at most 2 slots on that specific day (guaranteed different hours since hours are unique on same day)
       return NextResponse.json({
-        slots:
-          sameDay.map(
-            (s) =>
-              s.text
-          ),
+        slots: sameDay.slice(0, 2).map((s) => s.text),
       });
     }
 
-    const grouped =
-      new Map<
-        string,
-        Candidate[]
-      >();
+    // Sort candidates chronologically
+    candidates.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
-    for (
-      const candidate of
-      candidates
-    ) {
-      if (
-        !grouped.has(
-          candidate.dateKey
-        )
-      ) {
-        grouped.set(
-          candidate.dateKey,
-          []
-        );
-      }
+    const selected: Candidate[] = [];
+    selected.push(candidates[0]);
 
-      grouped
-        .get(
-          candidate.dateKey
-        )!
-        .push(
-          candidate
-        );
-    }
+    const d1 = new Date(selected[0].dateKey);
 
-    const sortedDates =
-      Array.from(
-        grouped.keys()
-      ).sort();
-
-    const selected:
-      Candidate[] = [];
-
-    const firstDate =
-      sortedDates[0];
-
-    const firstDaySlots =
-      grouped.get(
-        firstDate
-      )!;
-
-    firstDaySlots.sort(
-      (a, b) =>
-        a.hour -
-        b.hour
-    );
-
-    selected.push(
-      firstDaySlots[0]
-    );
-
-    for (
-      let i = 1;
-      i <
-      sortedDates.length;
-      i++
-    ) {
-
-      const slots =
-        grouped.get(
-          sortedDates[i]
-        )!;
-
-      const different =
-        slots.find(
-          (
-            slot
-          ) =>
-            slot.hour !==
-            selected[0]
-              .hour
-        );
-
-      if (
-        different
-      ) {
-        selected.push(
-          different
-        );
+    // 1. Try to find a second slot that is at least 1 day apart (diffDays >= 2, meaning not consecutive) and has a different hour
+    for (const candidate of candidates) {
+      const d2 = new Date(candidate.dateKey);
+      const diffDays = Math.round(Math.abs(d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (diffDays >= 2 && candidate.hour !== selected[0].hour) {
+        selected.push(candidate);
         break;
       }
     }
 
+    // Fallback: If no slots satisfy diffDays >= 2, relax it to "not same day" (diffDays >= 1) and different hour
+    if (selected.length === 1) {
+      for (const candidate of candidates) {
+        const d2 = new Date(candidate.dateKey);
+        const diffDays = Math.round(Math.abs(d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (diffDays >= 1 && candidate.hour !== selected[0].hour) {
+          selected.push(candidate);
+          break;
+        }
+      }
+    }
+
     return NextResponse.json({
-      slots:
-        selected.map(
-          (s) =>
-            s.text
-        ),
+      slots: selected.map((s) => s.text),
     });
 
   } catch (
