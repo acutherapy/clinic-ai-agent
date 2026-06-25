@@ -41,6 +41,126 @@ export async function POST(req: NextRequest) {
     // 1. Save user message to database
     await saveConversation(phone, "user", message);
 
+    // Opt-out / Opt-in Interceptor
+    const cleanPhoneCheck = phone.replace(/\D/g, "");
+    const cleanPhoneCheck10 = cleanPhoneCheck.slice(-10);
+
+    let isOptedOut = false;
+    let existingLeadCheck: any = null;
+    try {
+      const { data: dbLead } = await supabase
+        .from("leads")
+        .select("*")
+        .or(`phone.eq.${phone},phone.eq.${cleanPhoneCheck},phone.eq.${cleanPhoneCheck10},phone.ilike.%${cleanPhoneCheck10}%`)
+        .limit(1)
+        .maybeSingle();
+
+      if (dbLead) {
+        existingLeadCheck = dbLead;
+        isOptedOut = dbLead.is_opted_out || dbLead.status === "OPTED_OUT";
+      }
+    } catch (lookupErr) {
+      console.error("Error looking up lead for opt-out check:", lookupErr);
+    }
+
+    const optOutKeywords = /\b(STOP|UNSUBSCRIBE|QUIT|END)\b|明确不需要|不要再发了|不需要了|拒收/i;
+    const optInKeywords = /\b(START|UNSTOP|RESUME|SUBSCRIBE)\b|恢复|重新订阅|恢复回复|开启/i;
+
+    const matchesOptOut = optOutKeywords.test(message);
+    const matchesOptIn = optInKeywords.test(message);
+
+    if (matchesOptOut) {
+      console.log(`Opt-out keyword triggered for ${phone}: "${message}"`);
+      if (existingLeadCheck) {
+        const { error: updateErr } = await supabase
+          .from("leads")
+          .update({
+            is_opted_out: true,
+            status: "OPTED_OUT",
+            notes: existingLeadCheck.notes 
+              ? `${existingLeadCheck.notes}\nUser opted out via SMS on ${new Date().toLocaleString()}`
+              : `User opted out via SMS on ${new Date().toLocaleString()}`
+          })
+          .eq("id", existingLeadCheck.id);
+
+        if (updateErr && updateErr.message.includes("is_opted_out") && updateErr.message.includes("does not exist")) {
+          console.log("is_opted_out column does not exist yet. Retrying update without it.");
+          await supabase
+            .from("leads")
+            .update({
+              status: "OPTED_OUT",
+              notes: existingLeadCheck.notes 
+                ? `${existingLeadCheck.notes}\nUser opted out via SMS on ${new Date().toLocaleString()}`
+                : `User opted out via SMS on ${new Date().toLocaleString()}`
+            })
+            .eq("id", existingLeadCheck.id);
+        }
+      } else {
+        const { error: insertErr } = await supabase
+          .from("leads")
+          .insert({
+            phone,
+            name: sms.from?.name || "Patient",
+            status: "OPTED_OUT",
+            is_opted_out: true,
+            notes: `Created opted-out lead via SMS on ${new Date().toLocaleString()}`
+          });
+
+        if (insertErr && insertErr.message.includes("is_opted_out") && insertErr.message.includes("does not exist")) {
+          console.log("is_opted_out column does not exist yet. Retrying insert without it.");
+          await supabase
+            .from("leads")
+            .insert({
+              phone,
+              name: sms.from?.name || "Patient",
+              status: "OPTED_OUT",
+              notes: `Created opted-out lead via SMS on ${new Date().toLocaleString()}`
+            });
+        }
+      }
+
+      const optOutReply = "You have successfully opted out. We will not send you any more automated messages. Text START to resume.";
+      await sendSMS(phone, optOutReply);
+      await saveConversation(phone, "assistant", optOutReply);
+
+      return NextResponse.json({ success: true, optedOut: true });
+    }
+
+    if (matchesOptIn) {
+      console.log(`Opt-in keyword triggered for ${phone}: "${message}"`);
+      if (existingLeadCheck) {
+        const { error: updateErr } = await supabase
+          .from("leads")
+          .update({
+            is_opted_out: false,
+            status: "CONTACTED",
+            notes: existingLeadCheck.notes 
+              ? `${existingLeadCheck.notes}\nUser opted in via SMS on ${new Date().toLocaleString()}`
+              : `User opted in via SMS on ${new Date().toLocaleString()}`
+          })
+          .eq("id", existingLeadCheck.id);
+
+        if (updateErr && updateErr.message.includes("is_opted_out") && updateErr.message.includes("does not exist")) {
+          console.log("is_opted_out column does not exist yet. Retrying opt-in update without it.");
+          await supabase
+            .from("leads")
+            .update({
+              status: "CONTACTED",
+              notes: existingLeadCheck.notes 
+                ? `${existingLeadCheck.notes}\nUser opted in via SMS on ${new Date().toLocaleString()}`
+                : `User opted in via SMS on ${new Date().toLocaleString()}`
+            })
+            .eq("id", existingLeadCheck.id);
+        }
+      }
+      isOptedOut = false;
+    }
+
+    if (isOptedOut) {
+      console.log(`Ignoring SMS from opted-out number ${phone}: "${message}"`);
+      return NextResponse.json({ success: true, skippedOptedOut: true });
+    }
+
     // 2. Classify intent via booking-agent
     const bookingResponse = await fetch(
       `${process.env.NEXT_PUBLIC_SITE_URL}/api/booking-agent`,
