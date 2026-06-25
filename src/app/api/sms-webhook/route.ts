@@ -201,7 +201,8 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
     } else if (bookingResult.intent === "RESCHEDULE_APPOINTMENT") {
       if (bookingResult.day && bookingResult.time) {
         try {
-          const nextDate = new Date();
+          const nowHonolulu = new Date(new Date().toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
+          const nextDate = new Date(nowHonolulu);
           const dayMap: Record<string, number> = {
             Sunday: 0,
             Monday: 1,
@@ -213,12 +214,31 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
           };
 
           const targetDay = dayMap[bookingResult.day];
+          if (targetDay === undefined) {
+            throw new Error(`Invalid reschedule day: ${bookingResult.day}`);
+          }
+
           while (nextDate.getDay() !== targetDay) {
             nextDate.setDate(nextDate.getDate() + 1);
           }
 
           const hour = parseInt(bookingResult.time);
-          nextDate.setHours(hour, 0, 0, 0);
+          const yyyy = nextDate.getFullYear();
+          const mm = String(nextDate.getMonth() + 1).padStart(2, "0");
+          const dd = String(nextDate.getDate()).padStart(2, "0");
+          const hh = String(hour).padStart(2, "0");
+          let startTime = `${yyyy}-${mm}-${dd}T${hh}:00:00-10:00`;
+
+          // Past Time Prevention: if the rescheduled time has already passed today, move it to next week
+          const resolvedDate = new Date(startTime);
+          if (resolvedDate < nowHonolulu) {
+            console.log(`Resolved reschedule time ${startTime} is in the past. Shifting forward by 7 days.`);
+            nextDate.setDate(nextDate.getDate() + 7);
+            const newYyyy = nextDate.getFullYear();
+            const newMm = String(nextDate.getMonth() + 1).padStart(2, "0");
+            const newDd = String(nextDate.getDate()).padStart(2, "0");
+            startTime = `${newYyyy}-${newMm}-${newDd}T${hh}:00:00-10:00`;
+          }
 
           const rescheduleResponse = await fetch(
             `${process.env.NEXT_PUBLIC_SITE_URL}/api/reschedule-appointment`,
@@ -229,7 +249,7 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
               },
               body: JSON.stringify({
                 phone,
-                startTime: nextDate.toISOString(),
+                startTime,
               }),
             }
           );

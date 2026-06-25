@@ -88,7 +88,7 @@ export async function POST(
       end.getHours() + 1
     );
 
-    await calendar.events.update({
+    await calendar.events.patch({
       calendarId:
         CALENDAR_ID,
 

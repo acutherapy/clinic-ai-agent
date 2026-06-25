@@ -40,12 +40,24 @@ export async function POST(
       );
     }
 
-    await calendar.events.delete({
-      calendarId:
-        CALENDAR_ID,
-      eventId:
-        lastAppointment.calendar_event_id,
-    });
+    try {
+      await calendar.events.delete({
+        calendarId:
+          CALENDAR_ID,
+        eventId:
+          lastAppointment.calendar_event_id,
+      });
+    } catch (calErr: any) {
+      const isAlreadyDeleted =
+        calErr.code === 404 ||
+        calErr.code === 410 ||
+        calErr.status === 404 ||
+        calErr.status === 410;
+      if (!isAlreadyDeleted) {
+        throw calErr;
+      }
+      console.log("Calendar event already deleted or not found.");
+    }
 
     await supabase
       .from(
@@ -60,6 +72,11 @@ export async function POST(
         new_time:
           null,
       });
+
+    await supabase
+      .from("appointment_history")
+      .delete()
+      .eq("id", lastAppointment.id);
 
     const localTime =
       new Date(

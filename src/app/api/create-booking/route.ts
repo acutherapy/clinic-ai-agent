@@ -14,7 +14,8 @@ const {
   time,
 } = body;
 
-const today = new Date();
+const nowHonolulu = new Date(new Date().toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
+const appointmentDate = new Date(nowHonolulu);
 
 const dayMap: Record<string, number> = {
   Sunday: 0,
@@ -32,9 +33,6 @@ if (targetDay === undefined) {
   throw new Error("Invalid day");
 }
 
-const appointmentDate =
-  new Date(today);
-
 while (
   appointmentDate.getDay() !==
   targetDay
@@ -45,13 +43,22 @@ while (
 }
 
 const hour = parseInt(time);
+const yyyy = appointmentDate.getFullYear();
+const mm = String(appointmentDate.getMonth() + 1).padStart(2, "0");
+const dd = String(appointmentDate.getDate()).padStart(2, "0");
+const hh = String(hour).padStart(2, "0");
+let startTime = `${yyyy}-${mm}-${dd}T${hh}:00:00-10:00`;
 
-appointmentDate.setHours(
-  hour,
-  0,
-  0,
-  0
-);
+// Past Time Prevention: if the calculated time has already passed today, move it to next week
+const resolvedDate = new Date(startTime);
+if (resolvedDate < nowHonolulu) {
+  console.log(`Resolved booking time ${startTime} is in the past. Shifting forward by 7 days.`);
+  appointmentDate.setDate(appointmentDate.getDate() + 7);
+  const newYyyy = appointmentDate.getFullYear();
+  const newMm = String(appointmentDate.getMonth() + 1).padStart(2, "0");
+  const newDd = String(appointmentDate.getDate()).padStart(2, "0");
+  startTime = `${newYyyy}-${newMm}-${newDd}T${hh}:00:00-10:00`;
+}
 
 const { data: patient } =
   await supabase
@@ -86,8 +93,7 @@ const capacityResponse =
           "application/json",
       },
       body: JSON.stringify({
-        startTime:
-          appointmentDate.toISOString(),
+        startTime,
         serviceType,
       }),
     }
@@ -123,8 +129,7 @@ const response =
       body: JSON.stringify({
         patientName,
         phone,
-        startTime:
-          appointmentDate.toISOString(),
+        startTime,
         serviceType,
       }),
     }

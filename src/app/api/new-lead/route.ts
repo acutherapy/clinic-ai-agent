@@ -125,7 +125,40 @@ export async function POST(req: NextRequest) {
       leadNotes = lead.notes;
     }
 
-    // 3. Generate a warm, personalized outreach SMS using Emma
+    // 3. Query knowledge base if lead condition is specified
+    let kbAnswer = "";
+    let kbUrl = "";
+
+    if (condition) {
+      try {
+        console.log(`Running KB search for lead condition: "${condition}"`);
+        const kbResponse = await fetch(
+          `${process.env.NEXT_PUBLIC_SITE_URL}/api/search-kb`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              question: condition,
+            }),
+          }
+        );
+
+        const kbResult = await kbResponse.json();
+        if (kbResult.found) {
+          kbAnswer = kbResult.answer || "";
+          kbUrl = kbResult.url || "";
+          console.log(`Found KB facts for lead: "${kbResult.match}"`);
+        } else {
+          console.log(`No KB facts found for lead condition: "${condition}"`);
+        }
+      } catch (err) {
+        console.error("KB search inside new-lead failed:", err);
+      }
+    }
+
+    // 4. Generate a warm, personalized outreach SMS using Emma
     const outreachPromptMessage = `Website Form Submission - Chief Complaint: ${condition || "treatment"}`;
     
     const message = await generateEmmaResponse({
@@ -134,6 +167,8 @@ export async function POST(req: NextRequest) {
       conversationHistory: [],
       intent: "NEW_LEAD_OUTREACH",
       language: "English",
+      kbAnswer: kbAnswer || undefined,
+      kbUrl: kbUrl || undefined,
       availableSlots: slots,
     });
 
