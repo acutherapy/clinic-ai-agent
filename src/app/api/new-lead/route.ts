@@ -19,6 +19,10 @@ export async function POST(req: NextRequest) {
       email,
       location,
       preferred_contact,
+      dob,
+      insurance_type,
+      insurance_carrier,
+      claim_number,
     } = record;
 
     if (!name || !phone) {
@@ -113,6 +117,10 @@ export async function POST(req: NextRequest) {
           status: "NEW",
           source: "WEBSITE",
           notes: "Lead received from website form.",
+          dob: dob || null,
+          insurance_type: insurance_type || null,
+          insurance_carrier: insurance_carrier || null,
+          claim_number: claim_number || null,
         })
         .select()
         .single();

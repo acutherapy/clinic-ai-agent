@@ -37,18 +37,20 @@ Do NOT include any conversational filler, explanations, or markdown formatting. 
 12. "CLARIFICATION_NEEDED": When the input is completely garbled, unclear, or impossible to classify (e.g. "???", "asdf").
 
 ### OUTPUT JSON FORMAT:
-For standard queries:
-{
-  "intent": "INTENT_NAME",
-  "language": "DetectedLanguage"
-}
-
-If the intent is BOOK_APPOINTMENT, CHECK_AVAILABILITY, or RESCHEDULE_APPOINTMENT, extract "day" and "time" if present:
+You must ALWAYS return a JSON object in this format (including the "slots" object and all its keys):
 {
   "intent": "INTENT_NAME",
   "language": "DetectedLanguage",
   "day": "DayOfWeekOrDate", // e.g. "Friday" or "Monday" or null if missing. Normalize to capitalized day name (e.g. "Monday").
-  "time": "TimeSlot" // e.g. "10am" or "12pm" or null if missing.
+  "time": "TimeSlot", // e.g. "10am" or "12pm" or null if missing.
+  "slots": {
+    "name": "PatientName", // Extract user's full/first name if mentioned in the conversation, null if missing
+    "dob": "YYYY-MM-DD", // Extract date of birth if mentioned (e.g. DOB 1980-01-01 or born on 1/1/80), format as YYYY-MM-DD or raw text, null if missing
+    "insurance_type": "Auto", // Extract type of case: "Auto" (car crash/accident), "WorkersComp" (work injury), "VA" (VA/TriWest), "HealthInsurance" (HMSA/Kaiser/UHA/etc), "SelfPay" (cash/special), or null if missing
+    "insurance_carrier": "HMSA", // Extract insurance carrier name if mentioned (e.g. Kaiser, HMSA, Geico), null if missing
+    "claim_number": "ClaimNum", // Extract claim/case number if mentioned, null if missing
+    "location": "Honolulu" // Extract preferred location "Honolulu" or "Aiea" if mentioned, null if missing
+  }
 }
 
 If day/time are missing when they want to book:
@@ -56,7 +58,15 @@ If day/time are missing when they want to book:
   "intent": "BOOK_APPOINTMENT",
   "language": "DetectedLanguage",
   "needs_clarification": true,
-  "missing": "day,time" // or "day" or "time" depending on what is missing
+  "missing": "day,time", // or "day" or "time" depending on what is missing
+  "slots": {
+    "name": "PatientName", // Still extract slots if present
+    "dob": "YYYY-MM-DD",
+    "insurance_type": "Auto",
+    "insurance_carrier": "HMSA",
+    "claim_number": "ClaimNum",
+    "location": "Honolulu"
+  }
 }
 
 ### LANGUAGES SUPPORTED:
@@ -90,6 +100,18 @@ ${message}
       .trim();
 
     const result = JSON.parse(text);
+
+    if (!result.slots) {
+      result.slots = {};
+    }
+    result.slots = {
+      name: result.slots.name || null,
+      dob: result.slots.dob || null,
+      insurance_type: result.slots.insurance_type || null,
+      insurance_carrier: result.slots.insurance_carrier || null,
+      claim_number: result.slots.claim_number || null,
+      location: result.slots.location || null,
+    };
 
     console.log("====================");
     console.log("GPT RESULT");

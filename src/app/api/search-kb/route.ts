@@ -42,11 +42,23 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Step 1: Fetch all active knowledge base records
-    const { data, error } = await supabase
+    // Step 1: Fetch all active knowledge base records, ordering by weight_boost if available
+    let { data, error } = await supabase
       .from("clinic_knowledge_base")
       .select("*")
-      .eq("active", true);
+      .eq("active", true)
+      .order("weight_boost", { ascending: false });
+
+    // Fallback if the weight_boost column does not exist yet in the database
+    if (error && error.message.includes("weight_boost") && error.message.includes("does not exist")) {
+      console.log("weight_boost column does not exist yet. Falling back to unordered query.");
+      const fallbackResult = await supabase
+        .from("clinic_knowledge_base")
+        .select("*")
+        .eq("active", true);
+      data = fallbackResult.data;
+      error = fallbackResult.error;
+    }
 
     if (error) {
       console.error("KB Search Error:", error);
@@ -60,9 +72,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const kbRecords = data || [];
+
     // Step 2: Bi-directional Question Match
     // Matches if the user query is a substring of the database question, or vice versa (ignoring basic punctuation)
-    const questionMatch = data.find((item) => {
+    const questionMatch = kbRecords.find((item) => {
       const dbQ = (item.question || "").toLowerCase();
       const dbQClean = dbQ.replace(/[.,?!]/g, "").trim();
       return dbQ.includes(searchText) || searchText.includes(dbQClean);
@@ -70,6 +84,16 @@ export async function POST(req: NextRequest) {
 
     if (questionMatch) {
       console.log(`Matched question directly: "${questionMatch.question}"`);
+      
+      // Increment hit count if column exists
+      if (questionMatch.hasOwnProperty("hit_count")) {
+        supabase
+          .from("clinic_knowledge_base")
+          .update({ hit_count: (questionMatch.hit_count || 0) + 1 })
+          .eq("id", questionMatch.id)
+          .then();
+      }
+
       return NextResponse.json({
         success: true,
         found: true,
@@ -81,7 +105,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Step 3: Keyword Match
-    for (const item of data) {
+    for (const item of kbRecords) {
       const keywords = Array.isArray(item.keywords) ? item.keywords : [];
 
       const matched = keywords.some((keyword: string) => {
@@ -102,6 +126,16 @@ export async function POST(req: NextRequest) {
 
       if (matched) {
         console.log(`Matched keywords for: "${item.question}"`);
+        
+        // Increment hit count if column exists
+        if (item.hasOwnProperty("hit_count")) {
+          supabase
+            .from("clinic_knowledge_base")
+            .update({ hit_count: (item.hit_count || 0) + 1 })
+            .eq("id", item.id)
+            .then();
+        }
+
         return NextResponse.json({
           success: true,
           found: true,
@@ -117,18 +151,19 @@ export async function POST(req: NextRequest) {
     try {
       console.log("KB String/Keyword match failed. Running GPT Semantic Fallback...");
 
-      // Build a simplified list of questions with their DB IDs
-      const kbList = data.map((item) => ({
+      // Build a simplified list of questions with their DB IDs and categories
+      const kbList = kbRecords.map((item) => ({
         id: item.id,
         question: item.question,
+        category: item.category,
       }));
 
       const fallbackPrompt = `
 You are an AI assistant designed to route user questions to the most relevant clinic knowledge base question.
 Analyze the User Question and find the most relevant question from the list.
 
-If there is a clear match or a very similar topic (e.g. "shoulder blade knots" matches "Can acupuncture help shoulder pain?"), return a JSON object with the matching ID.
-If NO questions in the list are relevant to the user's question, return a JSON object with id null.
+If there is a clear match or a very similar topic (e.g. "shoulder blade knots" matches "Can acupuncture help shoulder pain?"), return a JSON object with the matching ID, a confidence score between 0 and 1, and the closest category name.
+If NO questions in the list are relevant to the user's question, return a JSON object with id null, the closest category name, and a low confidence score.
 
 Return ONLY the JSON object. Do not include markdown codeblocks or conversational filler.
 
@@ -140,7 +175,9 @@ ${JSON.stringify(kbList, null, 2)}
 
 ### Output JSON Format:
 {
-  "id": 123 // or null if no relevant match
+  "id": 123, // or null
+  "closest_category": "Services", // closest matching category name (e.g. Services, Insurance, Booking, Safety, Efficacy, Troubleshooting)
+  "confidence": 0.85 // float between 0 and 1
 }
 `;
 
@@ -154,9 +191,19 @@ ${JSON.stringify(kbList, null, 2)}
 
       const result = JSON.parse(text);
       if (result.id) {
-        const bestMatch = data.find((item) => item.id === result.id);
+        const bestMatch = kbRecords.find((item) => item.id === result.id);
         if (bestMatch) {
           console.log(`GPT Fallback matched User Question to KB ID: ${bestMatch.id} (${bestMatch.question})`);
+          
+          // Increment hit count if column exists
+          if (bestMatch.hasOwnProperty("hit_count")) {
+            supabase
+              .from("clinic_knowledge_base")
+              .update({ hit_count: (bestMatch.hit_count || 0) + 1 })
+              .eq("id", bestMatch.id)
+              .then();
+          }
+
           return NextResponse.json({
             success: true,
             found: true,
@@ -167,6 +214,22 @@ ${JSON.stringify(kbList, null, 2)}
           });
         }
       }
+
+      // If GPT fallback returned null or matched nothing, log as unmatched query for AI evolution
+      console.log(`Logging unmatched query to database: "${question}" (Closest category: ${result.closest_category || "UNKNOWN"}, Confidence: ${result.confidence || 0.0})`);
+      supabase
+        .from("unmatched_user_queries")
+        .insert({
+          raw_message: question,
+          top_intent_guessed: result.closest_category || "UNKNOWN",
+          confidence_score: result.confidence || 0.0
+        })
+        .then(({ error }) => {
+          if (error) {
+            console.log("Could not write to unmatched_user_queries table (it may not be created yet):", error.message);
+          }
+        });
+
     } catch (fallbackErr) {
       console.error("GPT KB Fallback failed:", fallbackErr);
     }

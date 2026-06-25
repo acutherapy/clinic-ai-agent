@@ -75,22 +75,87 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
 
       if (dbLead) {
-        patientName = dbLead.name;
         leadRecord = dbLead;
+        patientName = dbLead.name || patientName;
+        
+        // Update slots in the leads table if new ones are extracted
+        const updates: any = {};
+        if (bookingResult.slots?.name && (!dbLead.name || dbLead.name === "Patient" || dbLead.name === "Unknown")) {
+          updates.name = bookingResult.slots.name;
+          patientName = bookingResult.slots.name;
+        }
+        if (bookingResult.slots?.dob && !dbLead.dob) {
+          updates.dob = bookingResult.slots.dob;
+        }
+        if (bookingResult.slots?.insurance_type && !dbLead.insurance_type) {
+          updates.insurance_type = bookingResult.slots.insurance_type;
+        }
+        if (bookingResult.slots?.insurance_carrier && !dbLead.insurance_carrier) {
+          updates.insurance_carrier = bookingResult.slots.insurance_carrier;
+        }
+        if (bookingResult.slots?.claim_number && !dbLead.claim_number) {
+          updates.claim_number = bookingResult.slots.claim_number;
+        }
+        if (bookingResult.slots?.location && !dbLead.location) {
+          updates.location = bookingResult.slots.location;
+        }
+
+        if (Object.keys(updates).length > 0) {
+          console.log(`Saving dynamic slots to DB for lead ${dbLead.id}:`, updates);
+          const { data: updatedLead } = await supabase
+            .from("leads")
+            .update(updates)
+            .eq("id", dbLead.id)
+            .select()
+            .maybeSingle();
+          if (updatedLead) {
+            leadRecord = updatedLead;
+          }
+        }
       } else {
-        // Fallback to appointments table
-        const { data: dbAppt } = await supabase
-          .from("appointments")
-          .select("patient_name")
-          .or(`phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`)
-          .limit(1)
+        // If lead doesn't exist, create a new lead and save the extracted slots
+        console.log(`Creating new lead for incoming phone ${phone} with slots.`);
+        const initialName = bookingResult.slots?.name && bookingResult.slots.name !== "Patient" && bookingResult.slots.name !== "Unknown"
+          ? bookingResult.slots.name
+          : (sms.from?.name && sms.from.name !== "Unknown" ? sms.from.name : "Patient");
+          
+        const { data: newLead, error: insertError } = await supabase
+          .from("leads")
+          .insert({
+            phone,
+            name: initialName,
+            status: "NEW",
+            source: "SMS",
+            notes: "Created automatically from incoming SMS.",
+            dob: bookingResult.slots?.dob || null,
+            insurance_type: bookingResult.slots?.insurance_type || null,
+            insurance_carrier: bookingResult.slots?.insurance_carrier || null,
+            claim_number: bookingResult.slots?.claim_number || null,
+            location: bookingResult.slots?.location || null,
+          })
+          .select()
           .maybeSingle();
-        if (dbAppt?.patient_name) {
-          patientName = dbAppt.patient_name;
+
+        if (newLead) {
+          leadRecord = newLead;
+          patientName = newLead.name;
+        } else {
+          console.error("Failed to create new lead for incoming SMS:", insertError);
+          
+          // Fallback to appointments table if lead creation fails
+          const { data: dbAppt } = await supabase
+            .from("appointments")
+            .select("patient_name")
+            .or(`phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`)
+            .limit(1)
+            .maybeSingle();
+          if (dbAppt?.patient_name) {
+            patientName = dbAppt.patient_name;
+          }
         }
       }
     } catch (lookupErr) {
-      console.error("Patient name lookup error:", lookupErr);
+      console.error("Patient name / lead lookup and update error:", lookupErr);
     }
 
     // 3. Check if there are attachments (photos/documents)
@@ -315,21 +380,33 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
       }
     }
 
-    // 5. Retrieve available timeslots dynamically
+    // 5. Retrieve available timeslots dynamically (Only for Class B/C booking-oriented intents)
+    const bookingIntents = [
+      "BOOK_APPOINTMENT",
+      "CHECK_AVAILABILITY",
+      "RESCHEDULE_APPOINTMENT",
+      "AVAILABILITY_QUESTION",
+      "NEW_LEAD_OUTREACH"
+    ];
+    const needsSlots = bookingIntents.includes(bookingResult.intent) || 
+                       ["KB_ANSWER", "INSURANCE_QUESTION", "SERVICE_QUESTION", "PRICE_QUESTION"].includes(bookingResult.intent);
+
     let availableSlots: string[] = [];
-    try {
-      const slotsUrl = bookingResult.day
-        ? `${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots?day=${bookingResult.day}`
-        : `${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots`;
-      
-      const slotsResponse = await fetch(slotsUrl);
-      const slotsResult = await slotsResponse.json();
-      availableSlots = slotsResult.slots || [];
-    } catch (err) {
-      console.error("Error fetching slots:", err);
+    if (needsSlots) {
+      try {
+        const slotsUrl = bookingResult.day
+          ? `${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots?day=${bookingResult.day}`
+          : `${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots`;
+        
+        const slotsResponse = await fetch(slotsUrl);
+        const slotsResult = await slotsResponse.json();
+        availableSlots = slotsResult.slots || [];
+      } catch (err) {
+        console.error("Error fetching slots:", err);
+      }
     }
 
-    // 6. Query knowledge base if user has general/informational question (RAG)
+    // 6. Query knowledge base if user has general/informational question (RAG - Class B only)
     let kbAnswer = "";
     let kbUrl = "";
     const kbIntents = [
@@ -341,7 +418,6 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
       "INSURANCE_QUESTION",
       "SERVICE_QUESTION",
       "NEW_PATIENT_QUESTION",
-      "GENERAL_QUESTION",
     ];
 
     if (bookingResult.intent === "KB_ANSWER") {
@@ -388,11 +464,27 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
       availableSlots,
     });
 
-    // 9. Send SMS and save conversation
-    await sendSMS(phone, replyMessage);
-    await saveConversation(phone, "assistant", replyMessage);
+    // 9. Customise JaneApp links and apply Medical Safety Guardrails
+    let finalReply = customizeJaneAppUrls(replyMessage, {
+      name: patientName,
+      phone: phone,
+      location: leadRecord?.location || null
+    });
 
-    // 10. If the intent is TRANSFER_TO_HUMAN or UNKNOWN (fallback cases), notify the doctor
+    // Medical Safety Guardrail check
+    const restrictedAcupoints = /\b(LI-?4|ST-?36|SP-?6|LV-?3|GB-?20|DU-?20|REN-?4)\b|(穴位|针灸穴|配穴|药方|中药配方)/i;
+    if (restrictedAcupoints.test(finalReply)) {
+      console.log("Restricted medical content / acupoint detected in reply. Triggering Guardrail fallback.");
+      finalReply = bookingResult.language === "Chinese"
+        ? "我无法通过短信提供具体的医疗建议或穴位选择。David Cai 医生会在您的一对一咨询中亲自评估您的状况。让我们先为您安排与他的会诊！"
+        : "I cannot provide specific medical advice or acupoint selections via text. Dr. David Cai will personally evaluate your condition during your one-on-one consultation. Let's get you scheduled to see him first!";
+    }
+
+    // 10. Send SMS and save conversation
+    await sendSMS(phone, finalReply);
+    await saveConversation(phone, "assistant", finalReply);
+
+    // 11. If the intent is TRANSFER_TO_HUMAN or UNKNOWN (fallback cases), notify the doctor
     const needsDoctorNotification = ["TRANSFER_TO_HUMAN", "UNKNOWN"].includes(bookingResult.intent);
     
     if (needsDoctorNotification) {
@@ -425,4 +517,37 @@ Emma has replied and requested human staff follow-up.
       }
     );
   }
+}
+
+// Helper to customize JaneApp URLs with dynamic slot query parameters
+function customizeJaneAppUrls(
+  text: string,
+  slots: { name?: string; phone?: string; location?: string }
+): string {
+  return text.replace(/(https?:\/\/[^\s]*janeapp\.com[^\s]*)/gi, (url) => {
+    try {
+      // Remove trailing punctuation from url (like period, comma, or parenthesis)
+      let cleanUrl = url;
+      let suffix = "";
+      const match = url.match(/([.,!?)]+)$/);
+      if (match) {
+        cleanUrl = url.slice(0, -match[1].length);
+        suffix = match[1];
+      }
+
+      const urlObj = new URL(cleanUrl);
+      if (slots.name && slots.name !== "Patient" && slots.name !== "Unknown") {
+        urlObj.searchParams.set("name", slots.name);
+      }
+      if (slots.phone) {
+        urlObj.searchParams.set("phone", slots.phone);
+      }
+      if (slots.location) {
+        urlObj.searchParams.set("location", slots.location.toLowerCase());
+      }
+      return urlObj.toString() + suffix;
+    } catch {
+      return url;
+    }
+  });
 }
