@@ -103,7 +103,8 @@ export async function POST(req: NextRequest) {
     let leadId = record.id;
     let leadNotes = record.notes || "";
 
-    // 2. If not triggered by webhook, insert the new lead into Supabase leads table
+    // 2. If not triggered by webhook, insert the new lead into Supabase leads table and exit.
+    // The database INSERT will trigger the webhook, which will process RAG and send the SMS.
     if (!isWebhook) {
       const { data: lead, error: insertError } = await supabase
         .from("leads")
@@ -129,8 +130,13 @@ export async function POST(req: NextRequest) {
         console.error("Error inserting lead to Supabase:", insertError);
         throw new Error(`Database insert failed: ${insertError.message}`);
       }
-      leadId = lead.id;
-      leadNotes = lead.notes;
+
+      return NextResponse.json({
+        success: true,
+        isWebhook: false,
+        lead,
+        message: "Lead inserted successfully. SMS outreach will be triggered by database webhook."
+      });
     }
 
     // 3. Query knowledge base if lead condition is specified

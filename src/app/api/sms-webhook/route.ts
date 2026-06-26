@@ -8,6 +8,18 @@ const DR_CAI_PHONE = "+18083083879";
 
 export async function POST(req: NextRequest) {
   try {
+    // RingCentral Webhook Validation Handshake
+    const validationToken = req.headers.get("validation-token");
+    if (validationToken) {
+      console.log("RingCentral Webhook Validation handshake triggered!");
+      return new NextResponse("OK", {
+        status: 200,
+        headers: {
+          "Validation-Token": validationToken,
+        },
+      });
+    }
+
     const body = await req.json();
 
     console.log("========== INCOMING SMS ==========");
@@ -37,6 +49,74 @@ export async function POST(req: NextRequest) {
 
     const phone = sms.from?.phoneNumber || "";
     const message = sms.subject || sms.text || "";
+
+    const cleanPhone = phone.replace(/\D/g, "");
+    const cleanPhone10 = cleanPhone.slice(-10);
+
+    // Validate if the number exists in the database (leads, appointments, appointment_history)
+    let existsInDb = false;
+
+    if (cleanPhone10) {
+      const [leadCheck, apptCheck, historyCheck] = await Promise.all([
+        supabase
+          .from("leads")
+          .select("id")
+          .or(`phone.eq.${phone},phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`)
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from("appointments")
+          .select("id")
+          .or(`phone.eq.${phone},phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`)
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from("appointment_history")
+          .select("id")
+          .or(`phone.eq.${phone},phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`)
+          .limit(1)
+          .maybeSingle()
+      ]);
+
+      if (leadCheck.data || apptCheck.data || historyCheck.data) {
+        existsInDb = true;
+      }
+    }
+
+    if (!existsInDb) {
+      console.log(`Stranger detection: number ${phone} is not in database. Deleting orphaned conversations and skipping response.`);
+      if (cleanPhone10) {
+        await supabase
+          .from("sms_conversations")
+          .delete()
+          .or(`phone.eq.${phone},phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`);
+      }
+      return NextResponse.json({
+        success: true,
+        skippedStranger: true,
+        message: "Stranger number skipped and memory sync cleanup done."
+      });
+    }
+
+    // Check if there is pre-existing conversation history (prior to this webhook event)
+    const existingHistory = await getConversationHistory(phone, 1);
+    const hasHistory = existingHistory && existingHistory.length > 0;
+
+    // Detect if this message is a voicemail notification or call message
+    const isVoicemailOrCall = 
+      sms.type === "VoiceMail" ||
+      (message && /voicemail|voice mail|missed call|left a message|语音留言|电话留言|未接来电|未接电话/i.test(message));
+
+    if (isVoicemailOrCall && !hasHistory) {
+      console.log(`Voicemail/call suppression: voicemail received from ${phone} but no existing chat history. Saving to DB for record-keeping but skipping reply.`);
+      // Save user message to database for records
+      await saveConversation(phone, "user", message);
+      return NextResponse.json({
+        success: true,
+        skippedVoicemailNoHistory: true,
+        message: "Voicemail skipped because there is no pre-existing chat history."
+      });
+    }
 
     // 1. Save user message to database
     await saveConversation(phone, "user", message);

@@ -25,6 +25,25 @@ export async function GET() {
     }
 
     for (const patient of data) {
+      const cleanPhone = patient.phone.replace(/\D/g, "");
+      const cleanPhone10 = cleanPhone.slice(-10);
+      let exists = false;
+      if (cleanPhone10) {
+        const [lCheck, aCheck, hCheck] = await Promise.all([
+          supabase.from("leads").select("id").or(`phone.eq.${patient.phone},phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`).limit(1).maybeSingle(),
+          supabase.from("appointments").select("id").or(`phone.eq.${patient.phone},phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`).limit(1).maybeSingle(),
+          supabase.from("appointment_history").select("id").or(`phone.eq.${patient.phone},phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`).limit(1).maybeSingle()
+        ]);
+        if (lCheck.data || aCheck.data || hCheck.data) {
+          exists = true;
+        }
+      }
+
+      if (!exists) {
+        console.log(`Skipping outreach for stranger/deleted number: ${patient.phone}`);
+        continue;
+      }
+
       const suggestedTimes = patient.suggested_times || [];
 
       // Generate a warm, personalized outreach message using Emma
@@ -81,6 +100,28 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const { patientMessage, knowledge, language, url, phone } = await req.json();
+
+    const cleanPhone = phone ? phone.replace(/\D/g, "") : "";
+    const cleanPhone10 = cleanPhone.slice(-10);
+    let exists = false;
+    if (cleanPhone10) {
+      const [lCheck, aCheck, hCheck] = await Promise.all([
+        supabase.from("leads").select("id").or(`phone.eq.${phone},phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`).limit(1).maybeSingle(),
+        supabase.from("appointments").select("id").or(`phone.eq.${phone},phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`).limit(1).maybeSingle(),
+        supabase.from("appointment_history").select("id").or(`phone.eq.${phone},phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`).limit(1).maybeSingle()
+      ]);
+      if (lCheck.data || aCheck.data || hCheck.data) {
+        exists = true;
+      }
+    }
+
+    if (!exists) {
+      console.log(`Stranger detection in sms-agent POST: number ${phone} is not in database. Skipping generation.`);
+      return NextResponse.json({
+        success: false,
+        error: "Forbidden: stranger number not registered in clinic database."
+      }, { status: 403 });
+    }
 
     const conversationHistory = phone ? await getConversationHistory(phone, 6) : [];
 
