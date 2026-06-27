@@ -19,6 +19,14 @@ export async function GET(req: NextRequest) {
     const startTime = `${yyyy}-${mm}-${dd}T00:00:00-10:00`;
     const endTime = `${yyyy}-${mm}-${dd}T23:59:59-10:00`;
 
+    // Hawaii time calculations for "today"
+    const todayYyyy = nowHonolulu.getFullYear();
+    const todayMm = String(nowHonolulu.getMonth() + 1).padStart(2, "0");
+    const todayDd = String(nowHonolulu.getDate()).padStart(2, "0");
+
+    const todayStart = `${todayYyyy}-${todayMm}-${todayDd}T00:00:00-10:00`;
+    const todayEnd = `${todayYyyy}-${todayMm}-${todayDd}T23:59:59-10:00`;
+
     console.log(`Daily report running for: ${yyyy}-${mm}-${dd} (${startTime} to ${endTime})`);
 
     // 2. Fetch new leads created yesterday
@@ -38,6 +46,23 @@ export async function GET(req: NextRequest) {
       .lte("created_at", endTime);
 
     if (bookingsErr) throw bookingsErr;
+
+    // 3.5 Fetch today's scheduled appointments
+    const { data: todayAppointments, error: todayErr } = await supabase
+      .from("appointment_history")
+      .select("*")
+      .gte("appointment_time", todayStart)
+      .lte("appointment_time", todayEnd);
+
+    if (todayErr) throw todayErr;
+
+    const todayTotal = todayAppointments?.length || 0;
+    const todayAcu = todayAppointments?.filter((a: any) => 
+      (a.service_type || "").toLowerCase().includes("acupuncture")
+    ).length || 0;
+    const todayMassage = todayAppointments?.filter((a: any) => 
+      (a.service_type || "").toLowerCase().includes("massage")
+    ).length || 0;
 
     // 4. Fetch SMS messages from yesterday
     const { data: messages, error: msgsErr } = await supabase
@@ -217,14 +242,19 @@ If no new valid clinic-related questions or local terms are found, output exactl
     const reportMessage = `
 📊 Emma 每日工作汇报 (${reportDateStr})
 
-1. 新客线索 (Leads Received): ${leadsCount} 个
-2. 预约成功 (Successful Bookings): ${bookingsCount} 个
-3. 短信统计 (SMS Traffic):
+1. 新客线索 (Leads Received): ${leadsCount} 个 (过去24小时)
+2. 预约成功 (Successful Bookings): ${bookingsCount} 个 (过去24小时)
+3. 短信统计 (SMS Traffic): (过去24小时)
    - 总计发送/接收: ${totalMsg} 条
    - 收到患者短信: ${inboundMsg} 条
    - AI 发送短信: ${outboundMsg} 条
 
-💬 对话摘要与跟进提醒:
+📅 今日就诊日程 (Today's Patients):
+   - 总计预约病人: ${todayTotal} 个
+   - 针灸治疗客户: ${todayAcu} 个
+   - 医疗按摩客户: ${todayMassage} 个
+
+💬 对话摘要与跟进提醒 (过去24小时):
 ${chatSummary}
 
 🆕 Emma 自动学习系统升级:
@@ -251,7 +281,10 @@ ${autoLearnSummary}
       },
       summary: chatSummary,
       autoLearned: autoLearnSummary,
-      learnedCount
+      learnedCount,
+      todayTotal,
+      todayAcu,
+      todayMassage
     });
 
   } catch (err: any) {
