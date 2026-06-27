@@ -86,12 +86,13 @@ export async function POST(req: NextRequest) {
 
     const kbRecords = data || [];
 
-    // Step 2: Bi-directional Question Match
-    // Matches if the user query is a substring of the database question, or vice versa (ignoring basic punctuation)
+    // Step 2: Exact Question Match
+    // Matches if the user query is exactly the same as the database question (ignoring basic punctuation and spacing)
     const questionMatch = kbRecords.find((item) => {
       const dbQ = (item.question || "").toLowerCase();
-      const dbQClean = dbQ.replace(/[.,?!]/g, "").trim();
-      return dbQ.includes(searchText) || searchText.includes(dbQClean);
+      const dbQClean = dbQ.replace(/[.,?!]/g, "").replace(/\s+/g, " ").trim();
+      const cleanSearchText = searchText.replace(/[.,?!]/g, "").replace(/\s+/g, " ").trim();
+      return dbQClean === cleanSearchText;
     });
 
     if (questionMatch) {
