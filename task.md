@@ -1,0 +1,10 @@
+- [x] Fix slot formatting layout to prevent inline listings
+- [x] Fix search-kb to require exact matching and prevent false positives like "What?"
+- [x] Update cash pricing answers in database to include the $182.83 fee
+- [x] Create `vercel.json` and push it to GitHub to register automatic daily reports cron
+- [x] Implement automatic learning and self-upgrade capabilities from unmatched user queries in the daily report
+- [x] Add today's patient schedule (acupuncture vs massage) to the daily report
+- [x] Design and document the patient referrals database schema and create SQL setup guides
+- [x] Insert Susan Lee's concurrent referrals and run full-table reconciliation sync verification
+- [x] Insert Aleena Gomez's referral and run full-table reconciliation sync verification
+- [x] Deploy real-time sync hooks in booking APIs, daily report crons, and Emma's conversational prompt

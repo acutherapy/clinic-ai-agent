@@ -3,6 +3,8 @@ import { supabase } from "@/lib/supabase";
 import { sendSMS } from "@/lib/ringcentral";
 import { openai } from "@/lib/openai";
 import { syncAllActiveReferrals } from "@/lib/referral";
+import { generateEmmaResponse } from "@/lib/emma";
+import { saveConversation } from "@/lib/conversation";
 
 const DR_CAI_PHONE = "+18083083879";
 
@@ -242,6 +244,85 @@ If no new valid clinic-related questions or local terms are found, output exactl
       autoLearnSummary = "自动学习运行失败：" + learnErr.message;
     }
 
+    // 5.7 Expiration & Low Balance Referral Warnings
+    let lowBalanceWarnedCount = 0;
+    let expiryWarnedCount = 0;
+    try {
+      const { data: activeReferrals, error: activeRefErr } = await supabase
+        .from("patient_referrals")
+        .select("*")
+        .eq("referral_status", "Active");
+
+      if (activeRefErr) throw activeRefErr;
+
+      if (activeReferrals && activeReferrals.length > 0) {
+        let slots: string[] = [];
+        try {
+          const slotsResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots`);
+          const slotsResult = await slotsResponse.json();
+          slots = slotsResult.slots || [];
+        } catch (err) {
+          console.error("Error fetching slots for daily report warnings:", err);
+        }
+
+        for (const ref of activeReferrals) {
+          const remaining = ref.total_authorized_visits - ref.used_visits;
+          const expDate = new Date(ref.referral_end_date);
+          const diffDays = Math.ceil((expDate.getTime() - nowHonolulu.getTime()) / (1000 * 60 * 60 * 24));
+
+          // 1. Low Balance Alert (<= 2 visits left, not warned yet)
+          if (remaining > 0 && remaining <= 2 && !ref.low_balance_warned) {
+            const promptMessage = `System Automated Low-Balance Warning. The patient John has only ${remaining} sessions left on their referral (No: ${ref.referral_number}). Remind them and suggest slots to book.`;
+            const message = await generateEmmaResponse({
+              patientMessage: promptMessage,
+              patientName: ref.patient_name,
+              conversationHistory: [],
+              intent: "REFERRAL_LOW_BALANCE_REMINDER",
+              language: "English",
+              availableSlots: slots,
+              phone: ref.phone,
+            });
+
+            await sendSMS(ref.phone, message);
+            await saveConversation(ref.phone, "assistant", message);
+
+            await supabase
+              .from("patient_referrals")
+              .update({ low_balance_warned: true })
+              .eq("id", ref.id);
+
+            lowBalanceWarnedCount++;
+          }
+
+          // 2. Expiration Alert (<= 14 days left, not warned yet)
+          if (remaining > 0 && diffDays >= 0 && diffDays <= 14 && !ref.expiry_warned) {
+            const promptMessage = `System Automated Expiration Warning. The patient's referral (No: ${ref.referral_number}) is expiring in ${diffDays} days on ${ref.referral_end_date}. Remind them and suggest slots to book.`;
+            const message = await generateEmmaResponse({
+              patientMessage: promptMessage,
+              patientName: ref.patient_name,
+              conversationHistory: [],
+              intent: "REFERRAL_EXPIRING_REMINDER",
+              language: "English",
+              availableSlots: slots,
+              phone: ref.phone,
+            });
+
+            await sendSMS(ref.phone, message);
+            await saveConversation(ref.phone, "assistant", message);
+
+            await supabase
+              .from("patient_referrals")
+              .update({ expiry_warned: true })
+              .eq("id", ref.id);
+
+            expiryWarnedCount++;
+          }
+        }
+      }
+    } catch (refWarnErr: any) {
+      console.error("Referral warnings cron failed:", refWarnErr.message);
+    }
+
     // 6. Format SMS report to Dr. Cai
     const reportDateStr = `${yyyy}/${mm}/${dd}`;
     const leadsCount = newLeads?.length || 0;
@@ -261,6 +342,10 @@ If no new valid clinic-related questions or local terms are found, output exactl
    - 总计预约病人: ${todayTotal} 个
    - 针灸治疗客户: ${todayAcu} 个
    - 医疗按摩客户: ${todayMassage} 个
+
+⚠️ 转诊单到期提醒 (Referral Alerts):
+   - 已发送额度不足提醒: ${lowBalanceWarnedCount} 个
+   - 已发送过期警示提醒: ${expiryWarnedCount} 个
 
 💬 对话摘要与跟进提醒 (过去24小时):
 ${chatSummary}
@@ -292,7 +377,9 @@ ${autoLearnSummary}
       learnedCount,
       todayTotal,
       todayAcu,
-      todayMassage
+      todayMassage,
+      lowBalanceWarnedCount,
+      expiryWarnedCount
     });
 
   } catch (err: any) {
