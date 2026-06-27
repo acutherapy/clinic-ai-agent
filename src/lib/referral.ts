@@ -1,7 +1,7 @@
 import { supabase } from "./supabase";
 import { calendar } from "./google";
 
-const CALENDAR_ID = "46d7671d8624d3f9f0c685943921309a7d1801a2ae584906b21ea114282206ff@group.calendar.google.com";
+const CALENDAR_ID = "84okuq4catkgth1s7p2fcdb831n5pj1e@import.calendar.google.com";
 
 /**
  * Reconciles the used_visits count for all active referrals of a given patient phone number
@@ -42,18 +42,29 @@ export async function syncPatientReferrals(phone: string): Promise<void> {
       const matchedEvents = events.filter((event: any) => {
         const summary = (event.summary || "").toLowerCase();
         
-        // Match phone OR fuzzy match first/last name
-        const matchesPhone = cleanPhone10 && summary.includes(cleanPhone10);
-        const matchesName = summary.includes(lastName) || (firstName && summary.includes(firstName));
+        // Strip hyphens from summary to avoid false-positive boundaries like "Ash-lee" matching last name "Lee"
+        const cleanSummary = summary.replace(/-/g, "");
+
+        const lastNameRegex = new RegExp(`\\b${lastName}\\b`, "i");
+        const firstNameRegex = new RegExp(`\\b${firstName}\\b`, "i");
+        const firstWord = firstName.split(" ")[0];
+        const firstWordRegex = new RegExp(`\\b${firstWord}\\b`, "i");
+
+        // Match phone OR fuzzy match first/last name with word boundaries
+        const matchesPhone = cleanPhone10 && cleanSummary.includes(cleanPhone10);
+        const matchesName = 
+          lastNameRegex.test(cleanSummary) || 
+          firstNameRegex.test(cleanSummary) ||
+          (firstWord.length > 2 && firstWordRegex.test(cleanSummary) && lastNameRegex.test(cleanSummary));
         
         // Match service type keyword
         let matchesService = false;
         if (ref.service_type === "Acupuncture") {
-          matchesService = summary.includes("acupuncture") || summary.includes("acu");
+          matchesService = cleanSummary.includes("acupuncture") || cleanSummary.includes("acu");
         } else if (ref.service_type === "Medical Massage") {
-          matchesService = summary.includes("massage") || summary.includes("lmt");
+          matchesService = cleanSummary.includes("massage") || cleanSummary.includes("lmt");
         } else {
-          matchesService = summary.includes(ref.service_type.toLowerCase());
+          matchesService = cleanSummary.includes(ref.service_type.toLowerCase());
         }
 
         return (matchesPhone || matchesName) && matchesService;
