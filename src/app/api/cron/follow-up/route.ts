@@ -86,6 +86,7 @@ export async function GET(req: NextRequest) {
           intent: "CHECK_AVAILABILITY",
           language: "English",
           availableSlots,
+          phone: lead.phone,
         });
 
         // Send follow-up SMS

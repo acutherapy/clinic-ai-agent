@@ -1,4 +1,5 @@
 import { openai } from "./openai";
+import { supabase } from "./supabase";
 
 interface EmmaParams {
   patientMessage: string;
@@ -16,6 +17,7 @@ interface EmmaParams {
   kbAnswer?: string;
   kbUrl?: string;
   availableSlots?: string[];
+  phone?: string;
 }
 
 export async function generateEmmaResponse(params: EmmaParams): Promise<string> {
@@ -29,6 +31,7 @@ export async function generateEmmaResponse(params: EmmaParams): Promise<string> 
     kbAnswer,
     kbUrl,
     availableSlots,
+    phone,
   } = params;
 
   // Format conversation history
@@ -83,6 +86,34 @@ export async function generateEmmaResponse(params: EmmaParams): Promise<string> 
     learnMoreLabel = "Learn more:";
   }
 
+  // Fetch active/waiting referrals to inject as context
+  let referralContext = "";
+  if (phone) {
+    try {
+      const { data: referrals } = await supabase
+        .from("patient_referrals")
+        .select("*")
+        .eq("phone", phone)
+        .in("referral_status", ["Active", "Waiting"]);
+
+      if (referrals && referrals.length > 0) {
+        referralContext = `\n### Patient Active/Waiting Referral Benefits (MUST Remind Patient if relevant):\n`;
+        referrals.forEach(ref => {
+          const remaining = ref.total_authorized_visits - ref.used_visits;
+          referralContext += `- Service Type: ${ref.service_type}\n`;
+          referralContext += `  Referral/Authorization Number: ${ref.referral_number}\n`;
+          referralContext += `  Total Sessions Authorized: ${ref.total_authorized_visits}\n`;
+          referralContext += `  Sessions Used: ${ref.used_visits}\n`;
+          referralContext += `  Sessions Remaining: ${remaining}\n`;
+          referralContext += `  Expiration Date: ${ref.referral_end_date}\n`;
+          referralContext += `  Treating Physician: ${ref.treating_physician || "N/A"}\n\n`;
+        });
+      }
+    } catch (err: any) {
+      console.error("Error querying referrals for Emma response context:", err.message);
+    }
+  }
+
   const inputPrompt = `
 You are Emma, the warm, empathetic, and professional AI Front Desk Coordinator for AcuTherapy Clinics.
 
@@ -112,6 +143,9 @@ ${actionResult ? JSON.stringify(actionResult, null, 2) : "None"}
 
 ### Available Appointment Openings (Use these exact openings, do not invent others):
 ${formattedSlots}
+
+### Patient Active/Waiting Referral Benefits (If any, warmly mention to encourage scheduling):
+${referralContext || "None on file."}
 
 ### Rules for Generating the SMS Response:
 
@@ -153,8 +187,8 @@ ${formattedSlots}
 6. **Appointment Steering (Booking-Oriented & Outreach)**:
    - **Smart Choice Selection (Rejected Slots)**: If the patient rejects the previously proposed timeslots (e.g., says "these days don't work", "any other times?", "other dates?"), you MUST examine the conversation history, identify which timeslots have already been suggested to and rejected by the patient, and select **new, different** timeslots from the "Available Appointment Openings" pool. NEVER repeat the same rejected timeslots.
    - **New Lead Outreach (NEW_LEAD_OUTREACH)**: If the intent is \`NEW_LEAD_OUTREACH\`, you are initiating contact with a new lead who just submitted a request on our website. Introduce yourself warmly as Emma, the AI Front Desk Coordinator at AcuTherapy Clinics. Mention that you received their request regarding their specific condition or symptoms (e.g., if the Latest Patient Message says "Chief Complaint: shoulder pain", write "regarding your shoulder pain" or "regarding your request for neck stiffness"). Do NOT use generic placeholders like "your chief complaint" or "your condition" in your response; always refer directly to the actual symptoms described in the Latest Patient Message. Invite them to book by presenting 1 or 2 available openings.
-   - **General Booking Steering**: For other standard intents, unless the user is rescheduling, cancelling, or expressing a complaint, you should ALWAYS invite them to book an appointment. Weave in the available appointment openings naturally. Offer 1 or 2 specific times from the "Available Appointment Openings" list and ask if they work for them.
-   - **Automated Follow-up Campaigns (System Automated Follow-up Outreach)**: If the Latest Patient Message indicates a system follow-up outreach (e.g., contains "System Automated Follow-up Outreach"), you are initiating a periodic follow-up with a lead who has not booked yet. Reach out to them warmly, reference their condition/complaint (e.g. sciatica, back pain) if available, and ask if they are still interested in scheduling a consultation with Dr. Cai. Suggest 1 or 2 specific slots from "Available Appointment Openings".
+    - **General Booking Steering & Referral Reminders**: For other standard intents, unless the user is rescheduling, cancelling, or expressing a complaint, you should ALWAYS invite them to book an appointment. Weave in the available appointment openings naturally. Offer 1 or 2 specific times from the "Available Appointment Openings" list. If the patient has active/waiting referral benefits, you MUST warmly remind them of their remaining sessions and expiration date (e.g. "I see you have 8 sessions left on your referral expiring 12/17. Would you like to schedule?").
+    - **Automated Follow-up Campaigns (System Automated Follow-up Outreach)**: If the Latest Patient Message indicates a system follow-up outreach (e.g., contains "System Automated Follow-up Outreach"), you are initiating a periodic follow-up with a lead who has not booked yet. Reach out to them warmly, reference their condition/complaint (e.g. sciatica, back pain) if available, and ask if they are still interested in scheduling a consultation with Dr. Cai. Suggest 1 or 2 specific slots from "Available Appointment Openings".
 
 7. **Action Outcome Handling**:
    - If a transaction just occurred (actionResult is not None):

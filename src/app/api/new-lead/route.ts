@@ -184,6 +184,7 @@ export async function POST(req: NextRequest) {
       kbAnswer: kbAnswer || undefined,
       kbUrl: kbUrl || undefined,
       availableSlots: slots,
+      phone,
     });
 
     let smsResult: any = null;

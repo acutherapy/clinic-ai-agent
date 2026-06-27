@@ -55,6 +55,7 @@ export async function GET() {
         intent: "CHECK_AVAILABILITY",
         language: "English",
         availableSlots: suggestedTimes,
+        phone: patient.phone,
       });
 
       console.log("=================================");
@@ -143,6 +144,7 @@ export async function POST(req: NextRequest) {
       kbAnswer: knowledge || "",
       kbUrl: url || "",
       availableSlots,
+      phone,
     });
 
     return NextResponse.json({

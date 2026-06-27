@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { calendar } from "@/lib/google";
 import { supabase } from "@/lib/supabase";
 import { sendSMS } from "@/lib/ringcentral";
+import { syncPatientReferrals } from "@/lib/referral";
 
 const CALENDAR_ID =
   "46d7671d8624d3f9f0c685943921309a7d1801a2ae584906b21ea114282206ff@group.calendar.google.com";
@@ -108,6 +109,12 @@ ${phone}
 console.log(
   "DR CAI SMS SENT"
 );
+
+    try {
+      await syncPatientReferrals(phone);
+    } catch (refErr: any) {
+      console.error("Error syncing patient referrals during appointment creation:", refErr.message);
+    }
 
     return NextResponse.json({
       success: true,

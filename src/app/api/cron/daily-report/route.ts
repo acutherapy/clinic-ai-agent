@@ -2,11 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { sendSMS } from "@/lib/ringcentral";
 import { openai } from "@/lib/openai";
+import { syncAllActiveReferrals } from "@/lib/referral";
 
 const DR_CAI_PHONE = "+18083083879";
 
 export async function GET(req: NextRequest) {
   try {
+    // 0. Reconcile all patient referrals to ensure database counts are 100% accurate
+    try {
+      await syncAllActiveReferrals();
+    } catch (syncErr: any) {
+      console.error("Error running full referrals reconciliation inside daily report:", syncErr.message);
+    }
+
     // 1. Hawaii time calculations for "yesterday"
     const nowHonolulu = new Date(new Date().toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
     const yesterday = new Date(nowHonolulu);

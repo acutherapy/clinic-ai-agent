@@ -692,6 +692,7 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
       kbAnswer,
       kbUrl,
       availableSlots,
+      phone,
     });
 
     // 9. Customise JaneApp links and apply Medical Safety Guardrails (JaneApp customization temporarily disabled per user request)
