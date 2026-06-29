@@ -323,6 +323,31 @@ If no new valid clinic-related questions or local terms are found, output exactl
       console.error("Referral warnings cron failed:", refWarnErr.message);
     }
 
+    // Fetch pending same-day requests for Dr. Cai
+    let urgentListText = "无";
+    let pendingCount = 0;
+    try {
+      const { data: pendingLeads } = await supabase
+        .from("leads")
+        .select("name, phone, same_day_requested_at")
+        .eq("pending_human_reply", true)
+        .order("same_day_requested_at", { ascending: false });
+
+      if (pendingLeads && pendingLeads.length > 0) {
+        pendingCount = pendingLeads.length;
+        urgentListText = pendingLeads
+          .map((l: any) => {
+            const dateStr = l.same_day_requested_at 
+              ? new Date(l.same_day_requested_at).toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit', timeZone: 'Pacific/Honolulu' })
+              : "未知时间";
+            return `• ${l.name || "新客"} (${l.phone}) [请求时间: ${dateStr}]`;
+          })
+          .join("\n");
+      }
+    } catch (err: any) {
+      console.error("Error fetching pending same-day leads for daily report:", err.message);
+    }
+
     // 6. Format SMS report to Dr. Cai
     const reportDateStr = `${yyyy}/${mm}/${dd}`;
     const leadsCount = newLeads?.length || 0;
@@ -330,6 +355,9 @@ If no new valid clinic-related questions or local terms are found, output exactl
 
     const reportMessage = `
 📊 Emma 每日工作汇报 (${reportDateStr})
+
+⚠️ 待回复当天预约请求 (Unanswered Same-day Requests):
+${urgentListText}
 
 1. 新客线索 (Leads Received): ${leadsCount} 个 (过去24小时)
 2. 预约成功 (Successful Bookings): ${bookingsCount} 个 (过去24小时)

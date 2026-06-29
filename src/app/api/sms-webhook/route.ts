@@ -64,19 +64,22 @@ export async function POST(req: NextRequest) {
         const alreadyLogged = lastLogged?.some((msg: any) => msg.message === message);
 
         if (!alreadyLogged) {
-          console.log(`[Human Takeover] Manual SMS sent by staff. Pausing Emma for ${phone}.`);
+          console.log(`[Human Takeover] Manual SMS sent by staff. Pausing Emma and clearing pending same-day request for ${phone}.`);
           
           // 1. Log the human message in the history
           await saveConversation(phone, "assistant", message);
 
-          // 2. Set pause_emma to true in the leads table
+          // 2. Set pause_emma to true and clear pending_human_reply in the leads table
           try {
             await supabase
               .from("leads")
-              .update({ pause_emma: true })
+              .update({ 
+                pause_emma: true,
+                pending_human_reply: false
+              })
               .or(`phone.eq.${phone},phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`);
           } catch (err: any) {
-            console.error("Failed to update pause_emma column (maybe not created yet):", err.message);
+            console.error("Failed to update takeover flags in database:", err.message);
           }
         }
 
@@ -86,7 +89,10 @@ export async function POST(req: NextRequest) {
           try {
             await supabase
               .from("leads")
-              .update({ pause_emma: false })
+              .update({ 
+                pause_emma: false,
+                pending_human_reply: false
+              })
               .or(`phone.eq.${phone},phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`);
           } catch (err: any) {
             console.error("Failed to update pause_emma column:", err.message);
@@ -290,6 +296,45 @@ export async function POST(req: NextRequest) {
     if (isOptedOut) {
       console.log(`Ignoring SMS from opted-out number ${phone}: "${message}"`);
       return NextResponse.json({ success: true, skippedOptedOut: true });
+    }
+
+    // Same-day appointment request interceptor
+    const sameDayRegex = /\b(today|same[\s-]*day|tonight|this[\s-]+afternoon|openings?[\s-]+today|get[\s-]+in[\s-]+today)\b|当天|今天|下半天/i;
+    const isSameDayRequest = message && sameDayRegex.test(message);
+
+    if (isSameDayRequest) {
+      console.log(`[Same-Day Escalation] Urgent request from ${phone}: "${message}"`);
+      
+      const patientDisplayName = existingLeadCheck?.name || sms.from?.name || "Patient";
+
+      // 1. Pause Emma and set pending human reply flags in database
+      try {
+        await supabase
+          .from("leads")
+          .update({ 
+            pause_emma: true,
+            pending_human_reply: true,
+            same_day_requested_at: new Date().toISOString()
+          })
+          .or(`phone.eq.${phone},phone.eq.${cleanPhoneCheck},phone.eq.${cleanPhoneCheck10},phone.ilike.%${cleanPhoneCheck10}%`);
+      } catch (err: any) {
+        console.error("Failed to update same-day flags in database:", err.message);
+      }
+
+      // 2. Alert Dr. Cai immediately via SMS
+      const alertMsg = `🚨 URGENT SAME-DAY REQUEST! ${patientDisplayName} (${phone}) texted: "${message}". Emma has paused. Please reply to them immediately!`;
+      try {
+        await sendSMS(DR_CAI_PHONE, alertMsg);
+        console.log(`[Same-Day Escalation] Alert sent to Dr. Cai for ${phone}`);
+      } catch (err: any) {
+        console.error("Failed to send same-day SMS alert to Dr. Cai:", err.message);
+      }
+
+      return NextResponse.json({
+        success: true,
+        forwardedToHuman: true,
+        message: "Same-day request forwarded to human staff. Emma paused."
+      });
     }
 
     if (isEmmaPaused) {
