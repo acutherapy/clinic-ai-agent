@@ -301,7 +301,8 @@ export async function POST(req: NextRequest) {
 
     // Same-day appointment request interceptor
     const sameDayRegex = /\b(today|same[\s-]*day|tonight|this[\s-]+afternoon|openings?[\s-]+today|get[\s-]+in[\s-]+today)\b|当天|今天|下半天/i;
-    const isSameDayRequest = message && sameDayRegex.test(message);
+    const cancelOrReschedRegex = /cancel|cancell|resched/i;
+    const isSameDayRequest = message && sameDayRegex.test(message) && !cancelOrReschedRegex.test(message);
 
     if (isSameDayRequest) {
       console.log(`[Same-Day Escalation] Urgent request from ${phone}: "${message}"`);
@@ -418,6 +419,45 @@ export async function POST(req: NextRequest) {
             leadRecord = updatedLead;
           }
         }
+      }
+
+      // Human takeover escalation for CANCEL_APPOINTMENT, TRANSFER_TO_HUMAN, and UNKNOWN intents
+      const isHumanTransfer = ["TRANSFER_TO_HUMAN", "CANCEL_APPOINTMENT", "UNKNOWN"].includes(bookingResult.intent);
+      if (isHumanTransfer) {
+        console.log(`[Human Handover] Intent is ${bookingResult.intent} for ${phone}. Pausing Emma.`);
+        
+        // 1. Pause Emma and set pending human reply flags in database
+        try {
+          await supabase
+            .from("leads")
+            .update({ 
+              pause_emma: true,
+              pending_human_reply: true,
+              same_day_requested_at: new Date().toISOString()
+            })
+            .or(`phone.eq.${phone},phone.eq.${cleanPhoneCheck},phone.eq.${cleanPhoneCheck10},phone.ilike.%${cleanPhoneCheck10}%`);
+        } catch (err: any) {
+          console.error("Failed to update human takeover flags in database:", err.message);
+        }
+
+        // 2. Alert Dr. Cai immediately via SMS
+        let alertMsg = `🚨 HUMAN HELP REQUEST! ${patientName} (${phone}) texted: "${message}". Emma has paused. Please reply to them!`;
+        if (bookingResult.intent === "CANCEL_APPOINTMENT") {
+          alertMsg = `🚨 CANCELLATION REQUEST! ${patientName} (${phone}) texted: "${message}". Emma has paused. Please reply to them!`;
+        }
+        
+        try {
+          await sendSMS(DR_CAI_PHONE, alertMsg);
+          console.log(`[Human Handover] Alert sent to Dr. Cai for ${phone}`);
+        } catch (err: any) {
+          console.error("Failed to send human handover SMS alert to Dr. Cai:", err.message);
+        }
+
+        return NextResponse.json({
+          success: true,
+          forwardedToHuman: true,
+          message: `Request forwarded to human staff due to intent: ${bookingResult.intent}. Emma paused.`
+        });
       } else {
         // If lead doesn't exist, create a new lead and save the extracted slots
         console.log(`Creating new lead for incoming phone ${phone} with slots.`);

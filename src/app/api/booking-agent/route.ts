@@ -76,7 +76,9 @@ English, Chinese, Spanish, Japanese, Korean. Detect and return the language name
 - Never invent missing information.
 - Never guess missing days or times.
 - Never assume AM or PM unless stated.
-- Output ONLY the JSON block. Do not include markdown codeblocks (e.g. \`\`\`json).
+- Only classify as CANCEL_APPOINTMENT or RESCHEDULE_APPOINTMENT if the customer EXPLICITLY requests to cancel or reschedule (e.g. "cancel my appointment", "reschedule", "change my time").
+- If they just state they cannot come (e.g. "I can't make it", "I'm sick") or ask a question about cancellations (e.g. "So, you cancelling today?"), do NOT classify as CANCEL_APPOINTMENT or RESCHEDULE_APPOINTMENT. Instead, classify as TRANSFER_TO_HUMAN so staff can manage them.
+- Output ONLY the JSON block. Do not include markdown codeblocks.
 
 ========================================
 Conversation History:
