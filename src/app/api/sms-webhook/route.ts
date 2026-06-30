@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendSMS, getMessage } from "@/lib/ringcentral";
-import { saveConversation, getConversationHistory } from "@/lib/conversation";
+import { saveConversation, getConversationHistory, formatPhoneE164 } from "@/lib/conversation";
 import { generateEmmaResponse } from "@/lib/emma";
 import { supabase } from "@/lib/supabase";
 
@@ -39,9 +39,10 @@ export async function POST(req: NextRequest) {
     const sms = await getMessage(String(messageId));
 
     const direction = sms.direction || "Inbound";
-    const phone = direction === "Inbound"
+    const rawPhone = direction === "Inbound"
       ? (sms.from?.phoneNumber || "")
       : (sms.to?.[0]?.phoneNumber || "");
+    const phone = formatPhoneE164(rawPhone);
     const message = sms.subject || sms.text || "";
 
     const cleanPhone = phone.replace(/\D/g, "");
