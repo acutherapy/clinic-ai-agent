@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { sendSMS } from "@/lib/ringcentral";
+import { calendar } from "@/lib/google";
 import { openai } from "@/lib/openai";
 import { syncAllActiveReferrals } from "@/lib/referral";
 import { generateEmmaResponse } from "@/lib/emma";
@@ -57,21 +58,60 @@ export async function GET(req: NextRequest) {
 
     if (bookingsErr) throw bookingsErr;
 
-    // 3.5 Fetch today's scheduled appointments
-    const { data: todayAppointments, error: todayErr } = await supabase
-      .from("appointment_history")
-      .select("*")
-      .gte("appointment_time", todayStart)
-      .lte("appointment_time", todayEnd);
+    // 3.5 Fetch today's scheduled appointments from Google Calendar
+    const AI_CALENDAR_ID = "46d7671d8624d3f9f0c685943921309a7d1801a2ae584906b21ea114282206ff@group.calendar.google.com";
+    const CLINIC_CALENDAR_ID = "84okuq4catkgth1s7p2fcdb831n5pj1e@import.calendar.google.com";
 
-    if (todayErr) throw todayErr;
+    let todayAppointments: any[] = [];
+    try {
+      const [aiRes, clinicRes] = await Promise.all([
+        calendar.events.list({
+          calendarId: AI_CALENDAR_ID,
+          timeMin: new Date(todayStart).toISOString(),
+          timeMax: new Date(todayEnd).toISOString(),
+          singleEvents: true,
+        }),
+        calendar.events.list({
+          calendarId: CLINIC_CALENDAR_ID,
+          timeMin: new Date(todayStart).toISOString(),
+          timeMax: new Date(todayEnd).toISOString(),
+          singleEvents: true,
+        })
+      ]);
+      const aiEvents = aiRes.data.items || [];
+      const clinicEvents = clinicRes.data.items || [];
+      todayAppointments = [...aiEvents, ...clinicEvents];
+    } catch (calendarErr) {
+      console.error("Error fetching Google Calendar events for daily report:", calendarErr);
+    }
 
-    const todayTotal = todayAppointments?.length || 0;
-    const todayAcu = todayAppointments?.filter((a: any) => 
-      (a.service_type || "").toLowerCase().includes("acupuncture")
+    const isAppointment = (event: any) => {
+      const summary = (event.summary || "").toLowerCase();
+      if (!summary) return false;
+      if (
+        summary.includes("break") ||
+        summary.includes("unavailable") ||
+        summary.includes("lunch") ||
+        summary.includes("time off") ||
+        summary.includes("blocked") ||
+        summary.includes("off work") ||
+        summary.includes("vacation") ||
+        summary.includes("meeting") ||
+        summary.includes("personal") ||
+        summary.startsWith("not work")
+      ) {
+        return false;
+      }
+      return true;
+    };
+
+    const realAppointments = todayAppointments.filter(isAppointment);
+    const todayTotal = realAppointments.length;
+    const todayAcu = realAppointments.filter((a: any) => 
+      (a.summary || "").toLowerCase().includes("acupuncture")
     ).length || 0;
-    const todayMassage = todayAppointments?.filter((a: any) => 
-      (a.service_type || "").toLowerCase().includes("massage")
+    const todayMassage = realAppointments.filter((a: any) => 
+      (a.summary || "").toLowerCase().includes("massage")
     ).length || 0;
 
     // 4. Fetch SMS messages from yesterday

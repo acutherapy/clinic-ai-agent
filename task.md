@@ -9,3 +9,5 @@
 - [x] Insert Aleena Gomez's referral and run full-table reconciliation sync verification
 - [x] Deploy real-time sync hooks in booking APIs, daily report crons, and Emma's conversational prompt
 - [x] Deploy automatic human takeover (Emma pause/resume) logic and diagnose OpenAI quota depletion
+- [x] Standardize phone formatting to prevent false human-takeover triggers
+- [x] Route cancellation and human transfer intents to staff alerts, and prevent proactive AI cancellation proposals

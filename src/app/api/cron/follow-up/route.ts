@@ -6,20 +6,21 @@ import { saveConversation, getConversationHistory } from "@/lib/conversation";
 
 export async function GET(req: NextRequest) {
   try {
-    // 1. Fetch all leads who are eligible for follow-up (NEW or CONTACTED, not opted out)
+    // 1. Fetch all leads who are eligible for follow-up (NEW or CONTACTED, not opted out, not paused)
     let { data: leads, error: fetchErr } = await supabase
       .from("leads")
       .select("*")
       .in("status", ["NEW", "CONTACTED"])
-      .eq("is_opted_out", false);
+      .eq("is_opted_out", false)
+      .eq("pause_emma", false);
 
-    if (fetchErr && fetchErr.message.includes("is_opted_out") && fetchErr.message.includes("does not exist")) {
-      console.log("is_opted_out column does not exist yet. Falling back to query without is_opted_out filter.");
+    if (fetchErr && (fetchErr.message.includes("is_opted_out") || fetchErr.message.includes("pause_emma"))) {
+      console.log("Required columns might not exist yet. Falling back to query without filters.");
       const fallbackResult = await supabase
         .from("leads")
         .select("*")
         .in("status", ["NEW", "CONTACTED"]);
-      leads = fallbackResult.data;
+      leads = fallbackResult.data?.filter((l: any) => !l.is_opted_out && !l.pause_emma) || [];
       fetchErr = fallbackResult.error;
     }
 
@@ -52,15 +53,15 @@ export async function GET(req: NextRequest) {
       const currentStage = lead.follow_up_stage || 0;
 
       // Check stage thresholds relative to lead creation date
-      if (currentStage === 0 && elapsedDays >= 2) {
+      if (currentStage === 0 && elapsedDays >= 1) {
         targetStage = 1;
-      } else if (currentStage === 1 && elapsedDays >= 7) {
+      } else if (currentStage === 1 && elapsedDays >= 3) {
         targetStage = 2;
-      } else if (currentStage === 2 && elapsedDays >= 10) {
+      } else if (currentStage === 2 && elapsedDays >= 5) {
         targetStage = 3;
-      } else if (currentStage === 3 && elapsedDays >= 15) {
+      } else if (currentStage === 3 && elapsedDays >= 7) {
         targetStage = 4;
-      } else if (currentStage === 4 && elapsedDays >= 30) {
+      } else if (currentStage === 4 && elapsedDays >= 14) {
         targetStage = 5;
       }
 
