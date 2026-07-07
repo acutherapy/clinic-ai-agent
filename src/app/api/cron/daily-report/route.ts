@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { sendSMS } from "@/lib/ringcentral";
+import { sendSMS, checkAndRenewSubscription } from "@/lib/ringcentral";
 import { calendar } from "@/lib/google";
 import { openai } from "@/lib/openai";
 import { syncAllActiveReferrals } from "@/lib/referral";
@@ -16,6 +16,26 @@ export async function GET(req: NextRequest) {
       await syncAllActiveReferrals();
     } catch (syncErr: any) {
       console.error("Error running full referrals reconciliation inside daily report:", syncErr.message);
+    }
+
+    // 0.5 Check and auto-renew the RingCentral SMS Webhook subscription
+    let subscriptionStatus = "Unknown";
+    try {
+      const subResult = await checkAndRenewSubscription();
+      if (subResult.success) {
+        if (subResult.action === "renewed") {
+          subscriptionStatus = `Auto-renewed (ID: ${subResult.id})`;
+        } else if (subResult.action === "created") {
+          subscriptionStatus = `Created new (ID: ${subResult.id})`;
+        } else {
+          subscriptionStatus = `Healthy (ID: ${subResult.id})`;
+        }
+      } else {
+        subscriptionStatus = `Failed: ${subResult.error}`;
+      }
+    } catch (subErr: any) {
+      console.error("Error running webhook subscription check inside daily report:", subErr.message);
+      subscriptionStatus = `Error: ${subErr.message}`;
     }
 
     // 1. Hawaii time calculations for "yesterday"
@@ -415,6 +435,9 @@ ${urgentListText}
    - 已发送额度不足提醒: ${lowBalanceWarnedCount} 个
    - 已发送过期警示提醒: ${expiryWarnedCount} 个
 
+📶 信号与通道状态 (Webhook Sync):
+   - RingCentral 订阅状态: ${subscriptionStatus}
+
 💬 对话摘要与跟进提醒 (过去24小时):
 ${chatSummary}
 
@@ -447,7 +470,8 @@ ${autoLearnSummary}
       todayAcu,
       todayMassage,
       lowBalanceWarnedCount,
-      expiryWarnedCount
+      expiryWarnedCount,
+      subscriptionStatus
     });
 
   } catch (err: any) {

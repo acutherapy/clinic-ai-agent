@@ -86,3 +86,58 @@ export async function getMessage(
 
   return await resp.json();
 }
+
+export async function checkAndRenewSubscription() {
+  await ensureLogin();
+  console.log("[RingCentral] Checking existing Webhook subscriptions...");
+
+  try {
+    const resp = await platform.get("/restapi/v1.0/subscription");
+    const result = await resp.json();
+    const records = result.records || [];
+
+    const webhookUrl = "https://clinic-ai-agent-roan.vercel.app/api/sms-webhook";
+
+    // Find if there is an active webhook subscription pointing to our Vercel URL
+    const existingSub = records.find((r: any) =>
+      r.deliveryMode &&
+      r.deliveryMode.transportType === "WebHook" &&
+      r.deliveryMode.address === webhookUrl &&
+      r.status === "Active"
+    );
+
+    if (existingSub) {
+      console.log(`[RingCentral] Found active subscription: ${existingSub.id}, expires at ${existingSub.expirationTime}`);
+      // Check if it's expiring soon (within 24 hours). If so, renew it.
+      const expDate = new Date(existingSub.expirationTime);
+      const diffHours = (expDate.getTime() - Date.now()) / (1000 * 60 * 60);
+      if (diffHours < 24) {
+        console.log(`[RingCentral] Subscription is expiring in ${diffHours.toFixed(1)} hours. Renewing it...`);
+        const renewResp = await platform.post(`/restapi/v1.0/subscription/${existingSub.id}/renew`);
+        const renewResult = await renewResp.json();
+        console.log("[RingCentral] Subscription renewed successfully:", renewResult.id);
+        return { success: true, action: "renewed", id: renewResult.id, expiresAt: renewResult.expirationTime };
+      } else {
+        console.log(`[RingCentral] Subscription has ${diffHours.toFixed(1)} hours left. No action needed.`);
+        return { success: true, action: "none", id: existingSub.id, expiresAt: existingSub.expirationTime };
+      }
+    } else {
+      console.log("[RingCentral] No active subscription found for our webhook URL. Creating a new one...");
+      const createResp = await platform.post("/restapi/v1.0/subscription", {
+        eventFilters: [
+          "/restapi/v1.0/account/~/extension/~/message-store"
+        ],
+        deliveryMode: {
+          transportType: "WebHook",
+          address: webhookUrl
+        }
+      });
+      const createResult = await createResp.json();
+      console.log("[RingCentral] Created new subscription:", createResult.id);
+      return { success: true, action: "created", id: createResult.id, expiresAt: createResult.expirationTime };
+    }
+  } catch (error: any) {
+    console.error("[RingCentral] checkAndRenewSubscription error:", error);
+    return { success: false, error: error.message };
+  }
+}
