@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
         .from("leads")
         .select("id")
         .or(`phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`)
-        .or(`status.eq.CONTACTED,status.eq.BOOKED,created_at.gt.${yesterday}`)
+        .or(`status.in.(CONTACTED,BOOKED,contacted,booked,answered,ongoing,ANSWERED,ONGOING,\"following up 1\",\"following up 2\",\"following up 3\",\"following up 4\"),created_at.gt.${yesterday}`)
         .neq("id", record.id || "")
         .limit(1)
         .maybeSingle();

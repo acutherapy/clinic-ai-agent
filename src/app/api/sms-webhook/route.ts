@@ -299,6 +299,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, skippedOptedOut: true });
     }
 
+    // Auto-set status to "answered" if they reply and are currently in a lead status
+    if (existingLeadCheck) {
+      const activeStatuses = [
+        "NEW", "CONTACTED", "contacted", 
+        "no respond", "no show", 
+        "following up 1", "following up 2", "following up 3", "following up 4",
+        "NO_RESPOND", "NO_SHOW", 
+        "FOLLOWING_UP_1", "FOLLOWING_UP_2", "FOLLOWING_UP_3", "FOLLOWING_UP_4",
+        "NO RESPOND", "NO SHOW", 
+        "FOLLOWING UP 1", "FOLLOWING UP 2", "FOLLOWING UP 3", "FOLLOWING UP 4"
+      ];
+      if (activeStatuses.includes(existingLeadCheck.status)) {
+        console.log(`Updating lead ${existingLeadCheck.id} status to answered because they replied.`);
+        try {
+          await supabase
+            .from("leads")
+            .update({ status: "answered" })
+            .eq("id", existingLeadCheck.id);
+        } catch (err: any) {
+          console.error("Failed to update status to answered:", err.message);
+        }
+      }
+    }
+
     // Same-day appointment request interceptor
     const sameDayRegex = /\b(today|same[\s-]*day|tonight|this[\s-]+afternoon|openings?[\s-]+today|get[\s-]+in[\s-]+today)\b|当天|今天|下半天/i;
     const cancelOrReschedRegex = /cancel|cancell|resched/i;

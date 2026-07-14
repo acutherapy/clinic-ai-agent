@@ -7,10 +7,20 @@ import { saveConversation, getConversationHistory } from "@/lib/conversation";
 export async function GET(req: NextRequest) {
   try {
     // 1. Fetch all leads who are eligible for follow-up (NEW or CONTACTED, not opted out, not paused)
+    const activeFollowUpStatuses = [
+      "NEW", "CONTACTED", "contacted", 
+      "no respond", "no show", 
+      "following up 1", "following up 2", "following up 3", "following up 4",
+      "NO_RESPOND", "NO_SHOW", 
+      "FOLLOWING_UP_1", "FOLLOWING_UP_2", "FOLLOWING_UP_3", "FOLLOWING_UP_4",
+      "NO RESPOND", "NO SHOW", 
+      "FOLLOWING UP 1", "FOLLOWING UP 2", "FOLLOWING UP 3", "FOLLOWING UP 4"
+    ];
+
     let { data: leads, error: fetchErr } = await supabase
       .from("leads")
       .select("*")
-      .in("status", ["NEW", "CONTACTED"])
+      .in("status", activeFollowUpStatuses)
       .eq("is_opted_out", false)
       .eq("pause_emma", false);
 
@@ -19,7 +29,7 @@ export async function GET(req: NextRequest) {
       const fallbackResult = await supabase
         .from("leads")
         .select("*")
-        .in("status", ["NEW", "CONTACTED"]);
+        .in("status", activeFollowUpStatuses);
       leads = fallbackResult.data?.filter((l: any) => !l.is_opted_out && !l.pause_emma) || [];
       fetchErr = fallbackResult.error;
     }
@@ -96,10 +106,16 @@ export async function GET(req: NextRequest) {
         // Save assistant outreach to conversation history
         await saveConversation(lead.phone, "assistant", smsMessage);
 
+        let newStatus = "CONTACTED";
+        if (targetStage === 1) newStatus = "following up 1";
+        else if (targetStage === 2) newStatus = "following up 2";
+        else if (targetStage === 3) newStatus = "following up 3";
+        else if (targetStage >= 4) newStatus = "following up 4";
+
         // Update the lead record stage and last contacted timestamp
         const updatePayload: any = {
           last_contacted_at: new Date().toISOString(),
-          status: "CONTACTED",
+          status: newStatus,
           notes: lead.notes 
             ? `${lead.notes}\nSent automated follow-up campaign Stage ${targetStage} on ${new Date().toLocaleString()}`
             : `Sent automated follow-up campaign Stage ${targetStage} on ${new Date().toLocaleString()}`
