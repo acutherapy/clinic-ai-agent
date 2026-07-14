@@ -52,7 +52,7 @@ export default function LeadsDashboard() {
     "NEW", "CONTACTED", "BOOKED", "OPTED_OUT",
     "contacted", "booked", "answered", "no respond", "show up", "no show",
     "following up 1", "following up 2", "following up 3", "following up 4",
-    "finished", "ongoing"
+    "finished", "ongoing", "canceled", "nolonger interested", "no coverage", "others"
   ];
 
   // Load leads
