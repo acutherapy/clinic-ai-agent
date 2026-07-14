@@ -73,6 +73,12 @@ export default function Home() {
       }}
     >
       <h1>AcuTherapy AI Appointment Agent</h1>
+      
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <a href="/leads" style={{ fontSize: 13, color: "#0070f3", textDecoration: "none", fontWeight: "bold" }}>
+          Leads Dashboard ➔
+        </a>
+      </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <input
