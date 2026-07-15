@@ -454,7 +454,16 @@ export async function POST(req: NextRequest) {
       if (isAieaSelected) {
         console.log(`[Aiea Intercept] Patient ${patientName} (${phone}) requested Aiea location. Pausing Emma.`);
         
-        // 1. Pause Emma and set pending human reply flags in database
+        // 1. Send transition message to the patient
+        const transitionMsg = `Thank you! I am forwarding your request to our Aiea clinic staff to help you schedule. One of our team members will text you shortly to finalize your appointment!`;
+        try {
+          await sendSMS(phone, transitionMsg);
+          await saveConversation(phone, "assistant", transitionMsg);
+        } catch (smsErr: any) {
+          console.error("Failed to send Aiea transition SMS to patient:", smsErr.message);
+        }
+
+        // 2. Pause Emma and set pending human reply flags in database
         try {
           await supabase
             .from("leads")
@@ -469,7 +478,7 @@ export async function POST(req: NextRequest) {
           console.error("Failed to update Aiea location flags in database:", err.message);
         }
 
-        // 2. Alert Dr. Cai immediately via SMS
+        // 3. Alert Dr. Cai immediately via SMS
         const alertMsg = `🚨 AIEA LOCATION ESCALATION! ${patientName} (${phone}) requested Aiea clinic: "${message}". Emma has paused. Please reply to them manually!`;
         try {
           await sendSMS(DR_CAI_PHONE, alertMsg);

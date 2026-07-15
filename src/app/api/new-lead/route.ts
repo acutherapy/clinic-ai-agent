@@ -4,6 +4,8 @@ import { supabase } from "@/lib/supabase";
 import { saveConversation } from "@/lib/conversation";
 import { generateEmmaResponse } from "@/lib/emma";
 
+const DR_CAI_PHONE = "+18083083879";
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -92,29 +94,56 @@ export async function POST(req: NextRequest) {
     if (isWebhook) {
       const isAiea = location && location.toLowerCase().includes("aiea");
       if (isAiea) {
-        console.log(`Lead selected Aiea location. Auto-outreach skipped, pausing Emma, and setting pending human reply.`);
-        const logNotes = `[System Alert] Patient selected Aiea clinic location. Automatic outreach skipped. Emma paused, transferred to human reply.`;
+        console.log(`Lead selected Aiea location. Sending initial greeting, pausing Emma, and setting pending human reply.`);
         
+        // 1. Send initial warm greeting without specific slots to Aiea patient
+        const initialGreeting = `Hi ${name}, thanks for reaching out to AcuTherapy! I see you are interested in our Aiea clinic. What service (Acupuncture, Massage, or Shockwave) and what days/times work best for you? Our Aiea team will text you shortly to help you finalize this!`;
+        let smsResult: any = null;
+        let smsLogNotes = `Automatically sent initial Aiea greeting SMS on ${new Date().toLocaleString()}`;
+        
+        try {
+          smsResult = await sendSMS(phone, initialGreeting);
+          await saveConversation(phone, "assistant", initialGreeting);
+        } catch (smsErr: any) {
+          console.error("Aiea initial greeting SMS failed:", smsErr);
+          smsLogNotes = `Aiea initial greeting SMS failed on ${new Date().toLocaleString()}. Error: ${smsErr.message}`;
+        }
+
+        // 2. Pause Emma, flag human takeover, and update notes
+        const logNotes = `[Aiea Intercept] Patient selected Aiea location. Initial greeting sent. Emma paused, transferred to human reply.`;
         let finalRecord = record;
         if (record.id) {
           const { data } = await supabase
             .from("leads")
             .update({
+              status: smsResult ? "CONTACTED" : "NEW",
               pause_emma: true,
               pending_human_reply: true,
-              notes: record.notes ? `${record.notes}\n${logNotes}` : logNotes
+              last_contacted_at: smsResult ? new Date().toISOString() : null,
+              notes: record.notes ? `${record.notes}\n${logNotes}\n${smsLogNotes}` : `${logNotes}\n${smsLogNotes}`
             })
             .eq("id", record.id)
             .select()
             .single();
           if (data) finalRecord = data;
         }
+
+        // 3. Alert Dr. Cai immediately via SMS
+        const alertMsg = `🚨 NEW AIEA LEAD! ${name} (${phone}) selected Aiea clinic and was sent the initial greeting. Emma has paused. Please take over!`;
+        try {
+          await sendSMS(DR_CAI_PHONE, alertMsg);
+          console.log(`[Aiea Intercept] Alert sent to Dr. Cai for new lead ${phone}`);
+        } catch (err: any) {
+          console.error("Failed to send Aiea new lead SMS alert to Dr. Cai:", err.message);
+        }
         
         return NextResponse.json({
-          success: true,
-          skipped: true,
-          reason: "AIEA_LOCATION",
-          lead: finalRecord
+          success: smsResult ? true : false,
+          isWebhook,
+          phone,
+          smsResult,
+          lead: finalRecord,
+          smsError: smsResult ? null : smsLogNotes,
         });
       }
     }
