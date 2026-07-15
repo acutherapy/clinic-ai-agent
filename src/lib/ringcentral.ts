@@ -34,44 +34,90 @@ export async function sendSMS(
 ) {
   await ensureLogin();
 
-  let phone =
-    to.replace(/\D/g, "");
+  let phone = to.replace(/\D/g, "");
 
-  if (
-    phone.length === 10
-  ) {
-   phone = `+1${phone}`;
-  } else if (
-    phone.length === 11 &&
-    phone.startsWith("1")
-  ) {
+  if (phone.length === 10) {
+    phone = `+1${phone}`;
+  } else if (phone.length === 11 && phone.startsWith("1")) {
     phone = `+${phone}`;
   }
 
-  console.log(
-    "SENDING SMS TO:",
-    phone
-  );
-
-  const resp =
-    await platform.post(
+  // If text is within 1000 characters, send directly
+  if (text.length <= 1000) {
+    console.log("SENDING SMS TO:", phone, `(${text.length} chars)`);
+    const resp = await platform.post(
       "/restapi/v1.0/account/~/extension/~/sms",
       {
         from: {
-          phoneNumber:
-            process.env.RINGCENTRAL_PHONE_NUMBER,
+          phoneNumber: process.env.RINGCENTRAL_PHONE_NUMBER,
         },
         to: [
           {
-            phoneNumber:
-              phone,
+            phoneNumber: phone,
           },
         ],
         text,
       }
     );
+    return await resp.json();
+  }
 
-  return await resp.json();
+  // If text is larger than 1000 characters, chunk it by line breaks safely
+  console.log(`TEXT IS TOO LONG (${text.length} chars). CHUNKING SMS...`);
+  const lines = text.split("\n");
+  const chunks: string[] = [];
+  let currentChunk = "";
+
+  for (const line of lines) {
+    if (line.length > 900) {
+      if (currentChunk) {
+        chunks.push(currentChunk);
+        currentChunk = "";
+      }
+      let tempLine = line;
+      while (tempLine.length > 900) {
+        chunks.push(tempLine.slice(0, 900));
+        tempLine = tempLine.slice(900);
+      }
+      currentChunk = tempLine;
+    } else if (currentChunk.length + line.length + 1 > 900) {
+      chunks.push(currentChunk);
+      currentChunk = line;
+    } else {
+      currentChunk = currentChunk ? `${currentChunk}\n${line}` : line;
+    }
+  }
+  if (currentChunk) {
+    chunks.push(currentChunk);
+  }
+
+  console.log(`SPLIT SMS INTO ${chunks.length} CHUNKS.`);
+
+  let lastResp: any = null;
+  // Send chunks sequentially with a 1 second delay to ensure in-order delivery
+  for (let i = 0; i < chunks.length; i++) {
+    const chunkText = chunks[i];
+    const numberedChunk = `[Part ${i + 1}/${chunks.length}]\n${chunkText}`;
+    console.log(`SENDING CHUNK ${i + 1}/${chunks.length} (${numberedChunk.length} chars)`);
+    const resp = await platform.post(
+      "/restapi/v1.0/account/~/extension/~/sms",
+      {
+        from: {
+          phoneNumber: process.env.RINGCENTRAL_PHONE_NUMBER,
+        },
+        to: [
+          {
+            phoneNumber: phone,
+          },
+        ],
+        text: numberedChunk,
+      }
+    );
+    lastResp = await resp.json();
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+
+  return lastResp;
 }
 
 export async function getMessage(
