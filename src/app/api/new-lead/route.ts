@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
         console.log(`Lead selected Aiea location. Sending initial greeting, pausing Emma, and setting pending human reply.`);
         
         // 1. Send initial warm greeting without specific slots to Aiea patient
-        const initialGreeting = `Hi ${name}, thanks for reaching out to AcuTherapy! I see you are interested in our Aiea clinic. What service (Acupuncture, Massage, or Shockwave) and what days/times work best for you? Our Aiea team will text you shortly to help you finalize this!`;
+        const initialGreeting = `Hi ${name}, thanks for reaching out to AcuTherapy! I see you are interested in our Aiea clinic. What service (Acupuncture, Massage, or Fire Cupping) and what days/times work best for you? Our Aiea team will text you shortly to help you finalize this!`;
         let smsResult: any = null;
         let smsLogNotes = `Automatically sent initial Aiea greeting SMS on ${new Date().toLocaleString()}`;
         
