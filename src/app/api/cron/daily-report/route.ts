@@ -38,19 +38,8 @@ export async function GET(req: NextRequest) {
       subscriptionStatus = `Error: ${subErr.message}`;
     }
 
-    // 1. Hawaii time calculations for "yesterday"
+    // 1. Hawaii time calculations for "today"
     const nowHonolulu = new Date(new Date().toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
-    const yesterday = new Date(nowHonolulu);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    const yyyy = yesterday.getFullYear();
-    const mm = String(yesterday.getMonth() + 1).padStart(2, "0");
-    const dd = String(yesterday.getDate()).padStart(2, "0");
-
-    const startTime = `${yyyy}-${mm}-${dd}T00:00:00-10:00`;
-    const endTime = `${yyyy}-${mm}-${dd}T23:59:59-10:00`;
-
-    // Hawaii time calculations for "today"
     const todayYyyy = nowHonolulu.getFullYear();
     const todayMm = String(nowHonolulu.getMonth() + 1).padStart(2, "0");
     const todayDd = String(nowHonolulu.getDate()).padStart(2, "0");
@@ -58,7 +47,21 @@ export async function GET(req: NextRequest) {
     const todayStart = `${todayYyyy}-${todayMm}-${todayDd}T00:00:00-10:00`;
     const todayEnd = `${todayYyyy}-${todayMm}-${todayDd}T23:59:59-10:00`;
 
-    console.log(`Daily report running for: ${yyyy}-${mm}-${dd} (${startTime} to ${endTime})`);
+    // For 8:00 PM run, queries run for "today"
+    const startTime = todayStart;
+    const endTime = todayEnd;
+
+    // Hawaii time calculations for "tomorrow"
+    const tomorrow = new Date(nowHonolulu);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowYyyy = tomorrow.getFullYear();
+    const tomorrowMm = String(tomorrow.getMonth() + 1).padStart(2, "0");
+    const tomorrowDd = String(tomorrow.getDate()).padStart(2, "0");
+
+    const tomorrowStart = `${tomorrowYyyy}-${tomorrowMm}-${tomorrowDd}T00:00:00-10:00`;
+    const tomorrowEnd = `${tomorrowYyyy}-${tomorrowMm}-${tomorrowDd}T23:59:59-10:00`;
+
+    console.log(`Daily report running for today: ${todayYyyy}-${todayMm}-${todayDd} (${startTime} to ${endTime})`);
 
     // 2. Fetch new leads created yesterday
     const { data: newLeads, error: leadsErr } = await supabase
@@ -87,14 +90,14 @@ export async function GET(req: NextRequest) {
       const [aiRes, clinicRes] = await Promise.all([
         calendar.events.list({
           calendarId: AI_CALENDAR_ID,
-          timeMin: new Date(todayStart).toISOString(),
-          timeMax: new Date(todayEnd).toISOString(),
+          timeMin: new Date(tomorrowStart).toISOString(),
+          timeMax: new Date(tomorrowEnd).toISOString(),
           singleEvents: true,
         }),
         calendar.events.list({
           calendarId: CLINIC_CALENDAR_ID,
-          timeMin: new Date(todayStart).toISOString(),
-          timeMax: new Date(todayEnd).toISOString(),
+          timeMin: new Date(tomorrowStart).toISOString(),
+          timeMax: new Date(tomorrowEnd).toISOString(),
           singleEvents: true,
         })
       ]);
@@ -174,7 +177,7 @@ export async function GET(req: NextRequest) {
 
       if (threadsText.trim()) {
         const summaryPrompt = `
-You are a clinic operations assistant. Below is the SMS chat history with patients from yesterday.
+You are a clinic operations assistant. Below is the SMS chat history with patients from today.
 Analyze the chats and write a 2-3 sentence executive summary summarizing what patients wanted (e.g. scheduling, insurance questions, cancellations, etc.) and any outstanding issues that need human follow-up.
 Keep it extremely concise and professional, written in Chinese.
 
@@ -191,7 +194,7 @@ ${threadsText}
     }
 
     // 5.5 Auto-learning from unmatched queries
-    let autoLearnSummary = "昨日未收到或已忽略无效/重复的未知提问。";
+    let autoLearnSummary = "今日未收到或已忽略无效/重复的未知提问。";
     let learnedCount = 0;
     try {
       const { data: unmatchedQueries, error: unmatchedErr } = await supabase
@@ -291,12 +294,12 @@ If no new valid clinic-related questions or local terms are found, output exactl
           }
 
           if (insertedList.length > 0) {
-            autoLearnSummary = `昨日收到未知提问共 ${unmatchedQueries.length} 个。Emma 自动学习并升级入库以下问答：\n${insertedList.join("\n")}`;
+            autoLearnSummary = `今日收到未知提问共 ${unmatchedQueries.length} 个。Emma 自动学习并升级入库以下问答：\n${insertedList.join("\n")}`;
           } else {
-            autoLearnSummary = `昨日收到未知提问共 ${unmatchedQueries.length} 个（已存在相同意图或已过滤无效垃圾信息）。`;
+            autoLearnSummary = `今日收到未知提问共 ${unmatchedQueries.length} 个（已存在相同意图或已过滤无效垃圾信息）。`;
           }
         } else {
-          autoLearnSummary = `昨日收到未知提问共 ${unmatchedQueries.length} 个（已过滤无效/重复的非临床咨询）。`;
+          autoLearnSummary = `今日收到未知提问共 ${unmatchedQueries.length} 个（已过滤无效/重复的非临床咨询）。`;
         }
       }
     } catch (learnErr: any) {
@@ -409,7 +412,7 @@ If no new valid clinic-related questions or local terms are found, output exactl
     }
 
     // 6. Format SMS report to Dr. Cai
-    const reportDateStr = `${yyyy}/${mm}/${dd}`;
+    const reportDateStr = `${todayYyyy}/${todayMm}/${todayDd}`;
     const leadsCount = newLeads?.length || 0;
     const bookingsCount = bookings?.length || 0;
 
@@ -419,14 +422,14 @@ If no new valid clinic-related questions or local terms are found, output exactl
 ⚠️ 待回复当天预约请求 (Unanswered Same-day Requests):
 ${urgentListText}
 
-1. 新客线索 (Leads Received): ${leadsCount} 个 (过去24小时)
-2. 预约成功 (Successful Bookings): ${bookingsCount} 个 (过去24小时)
-3. 短信统计 (SMS Traffic): (过去24小时)
+1. 新客线索 (Leads Received): ${leadsCount} 个 (当天/Today)
+2. 预约成功 (Successful Bookings): ${bookingsCount} 个 (当天/Today)
+3. 短信统计 (SMS Traffic): (当天/Today)
    - 总计发送/接收: ${totalMsg} 条
    - 收到患者短信: ${inboundMsg} 条
    - AI 发送短信: ${outboundMsg} 条
 
-📅 今日就诊日程 (Today's Patients):
+📅 明日就诊日程 (Tomorrow's Patients):
    - 总计预约病人: ${todayTotal} 个
    - 针灸治疗客户: ${todayAcu} 个
    - 医疗按摩客户: ${todayMassage} 个
@@ -438,7 +441,7 @@ ${urgentListText}
 📶 信号与通道状态 (Webhook Sync):
    - RingCentral 订阅状态: ${subscriptionStatus}
 
-💬 对话摘要与跟进提醒 (过去24小时):
+💬 对话摘要与跟进提醒 (当天/Today):
 ${chatSummary}
 
 🆕 Emma 自动学习系统升级:
