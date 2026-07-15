@@ -36,16 +36,16 @@ export default function HumanModel({
         child.castShadow = true;
         child.receiveShadow = true;
         
-        // Define premium glowing glass/hologram material
+        // Define premium glowing glass/hologram material (Bright Teal/Sky Blue)
         child.material = new THREE.MeshStandardMaterial({
-          color: selectedPart ? "#0f766e" : "#0f172a", // teal/cyan if selected, else deep slate
+          color: selectedPart ? "#0d9488" : "#38bdf8", // bright teal if selected, else sky blue
           transparent: true,
-          opacity: activeLayers.muscular ? 0.35 : 0.08, // make skin transparent to see inner layers if toggled
-          wireframe: activeLayers.muscular && !selectedPart,
+          opacity: selectedPart ? 0.5 : activeLayers.muscular ? 0.25 : 0.06,
+          wireframe: !selectedPart && activeLayers.muscular,
           roughness: 0.1,
           metalness: 0.9,
-          emissive: selectedPart ? "#14b8a6" : "#1e293b",
-          emissiveIntensity: selectedPart ? 1.0 : 0.15,
+          emissive: selectedPart ? "#14b8a6" : "#0284c7", // glowing teal or sky blue
+          emissiveIntensity: selectedPart ? 1.5 : 0.4,
         });
       }
     });
@@ -68,13 +68,13 @@ export default function HumanModel({
     
     let clickedPart = "Abdomen";
 
-    if (localY > 2.0) {
+    if (localY > 2.1) {
       clickedPart = "Head";
-    } else if (localY > 1.5 && localY <= 2.0) {
+    } else if (localY > 1.6 && localY <= 2.1) {
       clickedPart = "Neck";
-    } else if (localY > 0.5 && localY <= 1.5) {
+    } else if (localY > 0.6 && localY <= 1.6) {
       clickedPart = "Chest";
-    } else if (localY <= 0.5 && localY > -0.2) {
+    } else if (localY <= 0.6 && localY > -0.2) {
       clickedPart = "Abdomen";
     } else if (localY <= -0.2) {
       if (localX > 0.1) {
@@ -94,10 +94,10 @@ export default function HumanModel({
     const localX = e.point.x;
     
     let part = "Abdomen";
-    if (localY > 2.0) part = "Head";
-    else if (localY > 1.5 && localY <= 2.0) part = "Neck";
-    else if (localY > 0.5 && localY <= 1.5) part = "Chest";
-    else if (localY <= 0.5 && localY > -0.2) part = "Abdomen";
+    if (localY > 2.1) part = "Head";
+    else if (localY > 1.6 && localY <= 2.1) part = "Neck";
+    else if (localY > 0.6 && localY <= 1.6) part = "Chest";
+    else if (localY <= 0.6 && localY > -0.2) part = "Abdomen";
     else if (localY <= -0.2) part = localX > 0.1 ? "Left Leg" : "Right Leg";
 
     setHoveredPart(part);
@@ -121,18 +121,18 @@ export default function HumanModel({
       {/* 1. REALISTIC HUMAN BODY GLB MODEL RENDERED AS INNER HOLOGRAPHIC SHELL */}
       <primitive 
         object={scene} 
-        position={[0, -1.0, 0]} // Center the GLB model vertically
-        scale={[1.1, 1.1, 1.1]} // Scale to fit the grid view
+        position={[0, 0.4, 0]} // Center and lift the GLB model vertically
+        scale={[4.2, 4.2, 4.2]} // Scale by 4.2 to match acupoints units
         onClick={handleModelClick}
         onPointerMove={handleModelMove}
         onPointerOut={() => setHoveredPart(null)}
       />
 
-      {/* 2. INNER NERVOUS / SKELETAL GLOW LAYERS (SIMULATED VIA MULTIPART CYLINDERS/BOXES INSIDE SHOWN IF LAYER ACTIVE) */}
+      {/* 2. INNER SKELETAL LAYER - RENDERED AS A THIN NEON GLOWING SPINE */}
       {activeLayers.skeletal && (
-        <mesh position={[0, 0.5, 0]}>
-          <cylinderGeometry args={[0.08, 0.08, 1.6, 8]} />
-          <meshBasicMaterial color="#cbd5e1" transparent opacity={0.65} />
+        <mesh position={[0, 0.3, -0.05]}>
+          <cylinderGeometry args={[0.015, 0.015, 1.8, 8]} />
+          <meshBasicMaterial color="#38bdf8" transparent opacity={0.7} wireframe />
         </mesh>
       )}
 
