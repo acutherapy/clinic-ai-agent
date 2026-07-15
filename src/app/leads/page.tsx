@@ -27,6 +27,7 @@ export default function LeadsDashboard() {
   const [conversation, setConversation] = useState<any[]>([]);
   const [loadingChat, setLoadingChat] = useState(false);
   const [topStatuses, setTopStatuses] = useState<any[]>([]);
+  const [conversionRate, setConversionRate] = useState(0);
   
   // Stats
   const [stats, setStats] = useState({
@@ -80,6 +81,11 @@ export default function LeadsDashboard() {
       ).length;
 
       setStats({ total, pendingTakeover, booked, followingUp });
+
+      // Calculate conversion rate: (booked + ongoing) / total
+      const ongoingCount = loadedLeads.filter(l => l.status === "ongoing" || l.status === "ONGOING").length;
+      const rate = total > 0 ? Math.round(((booked + ongoingCount) / total) * 100) : 0;
+      setConversionRate(rate);
 
       // Count all statuses
       const statusCounts: Record<string, number> = {};
@@ -308,8 +314,11 @@ export default function LeadsDashboard() {
             <p className="text-sm font-medium text-slate-500">Total Leads</p>
             <h3 className="text-3xl font-black text-slate-900 mt-1">{stats.total}</h3>
           </div>
-          <div className="bg-blue-50 text-blue-600 p-3 rounded-2xl">
-            <User className="h-6 w-6" />
+          <div 
+            className="bg-blue-50 text-blue-600 w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xs shadow-inner"
+            title="Deal Rate (Booked + Ongoing) / Total Leads"
+          >
+            {conversionRate}%
           </div>
         </div>
 
@@ -352,7 +361,7 @@ export default function LeadsDashboard() {
         <section className="px-6 pt-4 grid grid-cols-1 md:grid-cols-4 gap-4">
           {topStatuses.map((item, idx) => {
             const colors = getStatusColor(item.status);
-            const IconComponent = getStatusIcon(item.status);
+            const percentage = stats.total > 0 ? Math.round((item.count / stats.total) * 100) : 0;
             
             return (
               <div 
@@ -365,8 +374,8 @@ export default function LeadsDashboard() {
                   <p className="text-sm font-medium text-slate-500 capitalize">{item.status}</p>
                   <h3 className="text-3xl font-black text-slate-900 mt-1">{item.count}</h3>
                 </div>
-                <div className={`${colors.iconBg} ${colors.text} p-3 rounded-2xl`}>
-                  <IconComponent className="h-6 w-6" />
+                <div className={`${colors.iconBg} ${colors.text} w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xs shadow-inner`}>
+                  {percentage}%
                 </div>
               </div>
             );
@@ -772,16 +781,4 @@ function getStatusColor(status: string) {
   return { bg: "bg-slate-50", text: "text-slate-600", iconBg: "bg-slate-50" };
 }
 
-function getStatusIcon(status: string) {
-  const s = status.toLowerCase();
 
-  if (s.includes("ongoing")) return Activity;
-  if (s.includes("no respond") || s.includes("no response")) return Clock;
-  if (s.includes("no coverage")) return ShieldAlert;
-  if (s.includes("canceled") || s.includes("cancel")) return X;
-  if (s.includes("show up")) return UserCheck;
-  if (s.includes("no show")) return AlertTriangle;
-  if (s.includes("finished")) return Heart;
-  if (s.includes("answered")) return MessageSquare;
-  return Activity;
-}
