@@ -328,8 +328,11 @@ export default function LeadsDashboard() {
             <p className="text-sm font-medium text-slate-500">Needs Human Attention</p>
             <h3 className="text-3xl font-black text-amber-600 mt-1">{stats.pendingTakeover}</h3>
           </div>
-          <div className="bg-amber-50 text-amber-600 p-3 rounded-2xl">
-            <ShieldAlert className="h-6 w-6" />
+          <div 
+            className="bg-amber-50 text-amber-600 w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xs shadow-inner"
+            title="Percentage of leads requiring human attention"
+          >
+            {stats.total > 0 ? Math.round((stats.pendingTakeover / stats.total) * 100) : 0}%
           </div>
         </div>
 
@@ -339,8 +342,11 @@ export default function LeadsDashboard() {
             <p className="text-sm font-medium text-slate-500">Booked Patients</p>
             <h3 className="text-3xl font-black text-emerald-600 mt-1">{stats.booked}</h3>
           </div>
-          <div className="bg-emerald-50 text-emerald-600 p-3 rounded-2xl">
-            <UserCheck className="h-6 w-6" />
+          <div 
+            className="bg-emerald-50 text-emerald-600 w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xs shadow-inner"
+            title="Percentage of booked patients"
+          >
+            {stats.total > 0 ? Math.round((stats.booked / stats.total) * 100) : 0}%
           </div>
         </div>
 
@@ -350,8 +356,11 @@ export default function LeadsDashboard() {
             <p className="text-sm font-medium text-slate-500">Active Follow-Ups</p>
             <h3 className="text-3xl font-black text-indigo-600 mt-1">{stats.followingUp}</h3>
           </div>
-          <div className="bg-indigo-50 text-indigo-600 p-3 rounded-2xl">
-            <Calendar className="h-6 w-6" />
+          <div 
+            className="bg-indigo-50 text-indigo-600 w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xs shadow-inner"
+            title="Percentage of active follow-ups"
+          >
+            {stats.total > 0 ? Math.round((stats.followingUp / stats.total) * 100) : 0}%
           </div>
         </div>
       </section>
