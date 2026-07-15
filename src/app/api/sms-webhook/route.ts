@@ -445,6 +445,47 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // 2.5 Aiea Location Escalation
+      const isAieaSelected = 
+        (bookingResult.slots?.location && bookingResult.slots.location.toLowerCase().includes("aiea")) ||
+        (leadRecord?.location && leadRecord.location.toLowerCase().includes("aiea")) ||
+        (/\baiea\b/i.test(message));
+
+      if (isAieaSelected) {
+        console.log(`[Aiea Intercept] Patient ${patientName} (${phone}) requested Aiea location. Pausing Emma.`);
+        
+        // 1. Pause Emma and set pending human reply flags in database
+        try {
+          await supabase
+            .from("leads")
+            .update({ 
+              pause_emma: true,
+              pending_human_reply: true,
+              location: "Aiea",
+              same_day_requested_at: new Date().toISOString()
+            })
+            .or(`phone.eq.${phone},phone.eq.${cleanPhoneCheck},phone.eq.${cleanPhoneCheck10},phone.ilike.%${cleanPhoneCheck10}%`);
+        } catch (err: any) {
+          console.error("Failed to update Aiea location flags in database:", err.message);
+        }
+
+        // 2. Alert Dr. Cai immediately via SMS
+        const alertMsg = `🚨 AIEA LOCATION ESCALATION! ${patientName} (${phone}) requested Aiea clinic: "${message}". Emma has paused. Please reply to them manually!`;
+        try {
+          await sendSMS(DR_CAI_PHONE, alertMsg);
+          console.log(`[Aiea Intercept] Alert sent to Dr. Cai for ${phone}`);
+        } catch (err: any) {
+          console.error("Failed to send Aiea escalation SMS alert to Dr. Cai:", err.message);
+        }
+
+        return NextResponse.json({
+          success: true,
+          forwardedToHuman: true,
+          reason: "AIEA_LOCATION",
+          message: "Aiea clinic requested. Forwarded to human staff. Emma paused."
+        });
+      }
+
       // Human takeover escalation for CANCEL_APPOINTMENT, TRANSFER_TO_HUMAN, and UNKNOWN intents
       const isHumanTransfer = ["TRANSFER_TO_HUMAN", "CANCEL_APPOINTMENT", "UNKNOWN"].includes(bookingResult.intent);
       if (isHumanTransfer) {

@@ -88,6 +88,37 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // 1.5. Check if location is Aiea (case-insensitive) - only on webhook trigger
+    if (isWebhook) {
+      const isAiea = location && location.toLowerCase().includes("aiea");
+      if (isAiea) {
+        console.log(`Lead selected Aiea location. Auto-outreach skipped, pausing Emma, and setting pending human reply.`);
+        const logNotes = `[System Alert] Patient selected Aiea clinic location. Automatic outreach skipped. Emma paused, transferred to human reply.`;
+        
+        let finalRecord = record;
+        if (record.id) {
+          const { data } = await supabase
+            .from("leads")
+            .update({
+              pause_emma: true,
+              pending_human_reply: true,
+              notes: record.notes ? `${record.notes}\n${logNotes}` : logNotes
+            })
+            .eq("id", record.id)
+            .select()
+            .single();
+          if (data) finalRecord = data;
+        }
+        
+        return NextResponse.json({
+          success: true,
+          skipped: true,
+          reason: "AIEA_LOCATION",
+          lead: finalRecord
+        });
+      }
+    }
+
     // 2. Fetch availability slots dynamically
     let slots: string[] = [];
     try {
