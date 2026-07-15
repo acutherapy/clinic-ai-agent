@@ -26,6 +26,7 @@ export default function LeadsDashboard() {
   const [selectedLead, setSelectedLead] = useState<any | null>(null);
   const [conversation, setConversation] = useState<any[]>([]);
   const [loadingChat, setLoadingChat] = useState(false);
+  const [topStatuses, setTopStatuses] = useState<any[]>([]);
   
   // Stats
   const [stats, setStats] = useState({
@@ -79,6 +80,26 @@ export default function LeadsDashboard() {
       ).length;
 
       setStats({ total, pendingTakeover, booked, followingUp });
+
+      // Count all statuses
+      const statusCounts: Record<string, number> = {};
+      loadedLeads.forEach(l => {
+        const s = l.status || "NEW";
+        statusCounts[s] = (statusCounts[s] || 0) + 1;
+      });
+
+      // Sort statuses by count descending
+      const sortedStatuses = Object.keys(statusCounts)
+        .map(status => ({ status, count: statusCounts[status] }))
+        .sort((a, b) => b.count - a.count);
+
+      // Filter out the main ones that are already in the first row to avoid redundancy
+      const excluded = ["NEW", "CONTACTED", "BOOKED", "new", "contacted", "booked"];
+      const topOtherStatuses = sortedStatuses
+        .filter(item => !excluded.includes(item.status))
+        .slice(0, 4);
+
+      setTopStatuses(topOtherStatuses);
       
       // Keep selected lead sync
       if (selectedLead) {
@@ -325,6 +346,33 @@ export default function LeadsDashboard() {
           </div>
         </div>
       </section>
+
+      {/* Second Row: Top 4 Dynamic Status Stats */}
+      {topStatuses.length > 0 && (
+        <section className="px-6 pt-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+          {topStatuses.map((item, idx) => {
+            const colors = getStatusColor(item.status);
+            const IconComponent = getStatusIcon(item.status);
+            
+            return (
+              <div 
+                key={idx} 
+                className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex items-center justify-between transition-all duration-300 hover:shadow-md cursor-pointer"
+                onClick={() => setStatusFilter(item.status)}
+                title={`Click to filter by ${item.status}`}
+              >
+                <div>
+                  <p className="text-sm font-medium text-slate-500 capitalize">{item.status}</p>
+                  <h3 className="text-3xl font-black text-slate-900 mt-1">{item.count}</h3>
+                </div>
+                <div className={`${colors.iconBg} ${colors.text} p-3 rounded-2xl`}>
+                  <IconComponent className="h-6 w-6" />
+                </div>
+              </div>
+            );
+          })}
+        </section>
+      )}
 
       {/* Main Workspace Split Layout */}
       <main className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -709,4 +757,31 @@ export default function LeadsDashboard() {
       </main>
     </div>
   );
+}
+
+function getStatusColor(status: string) {
+  const s = status.toLowerCase();
+  if (s.includes("ongoing")) return { bg: "bg-teal-50", text: "text-teal-600", iconBg: "bg-teal-50" };
+  if (s.includes("no respond") || s.includes("no response")) return { bg: "bg-rose-50", text: "text-rose-600", iconBg: "bg-rose-50" };
+  if (s.includes("no coverage")) return { bg: "bg-amber-50", text: "text-amber-600", iconBg: "bg-amber-50" };
+  if (s.includes("canceled") || s.includes("cancel")) return { bg: "bg-slate-100", text: "text-slate-600", iconBg: "bg-slate-100" };
+  if (s.includes("show up")) return { bg: "bg-emerald-50", text: "text-emerald-600", iconBg: "bg-emerald-50" };
+  if (s.includes("no show")) return { bg: "bg-red-50", text: "text-red-600", iconBg: "bg-red-50" };
+  if (s.includes("finished")) return { bg: "bg-indigo-50", text: "text-indigo-600", iconBg: "bg-indigo-50" };
+  if (s.includes("answered")) return { bg: "bg-blue-50", text: "text-blue-600", iconBg: "bg-blue-50" };
+  return { bg: "bg-slate-50", text: "text-slate-600", iconBg: "bg-slate-50" };
+}
+
+function getStatusIcon(status: string) {
+  const s = status.toLowerCase();
+
+  if (s.includes("ongoing")) return Activity;
+  if (s.includes("no respond") || s.includes("no response")) return Clock;
+  if (s.includes("no coverage")) return ShieldAlert;
+  if (s.includes("canceled") || s.includes("cancel")) return X;
+  if (s.includes("show up")) return UserCheck;
+  if (s.includes("no show")) return AlertTriangle;
+  if (s.includes("finished")) return Heart;
+  if (s.includes("answered")) return MessageSquare;
+  return Activity;
 }
