@@ -392,20 +392,30 @@ If no new valid clinic-related questions or local terms are found, output exactl
     try {
       const { data: pendingLeads } = await supabase
         .from("leads")
-        .select("name, phone, same_day_requested_at")
+        .select("name, phone, same_day_requested_at, status")
         .eq("pending_human_reply", true)
         .order("same_day_requested_at", { ascending: false });
 
       if (pendingLeads && pendingLeads.length > 0) {
-        pendingCount = pendingLeads.length;
-        urgentListText = pendingLeads
-          .map((l: any) => {
-            const dateStr = l.same_day_requested_at 
-              ? new Date(l.same_day_requested_at).toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit', timeZone: 'Pacific/Honolulu' })
-              : "未知时间";
-            return `• ${l.name || "新客"} (${l.phone}) [请求时间: ${dateStr}]`;
-          })
-          .join("\n");
+        // Exclude leads that are already booked, canceled, show up (visited), no coverage, or not interested
+        const activePendingLeads = pendingLeads.filter((l: any) => {
+          const status = (l.status || "").toLowerCase().trim();
+          return !["booked", "show up", "show_up", "canceled", "cancelled", "no coverage", "no_coverage", "nolonger interested", "no longer interested", "opted_out"].includes(status);
+        });
+
+        pendingCount = activePendingLeads.length;
+        if (activePendingLeads.length > 0) {
+          urgentListText = activePendingLeads
+            .map((l: any) => {
+              const dateStr = l.same_day_requested_at 
+                ? new Date(l.same_day_requested_at).toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit', timeZone: 'Pacific/Honolulu' })
+                : "未知时间";
+              return `• ${l.name || "新客"} (${l.phone}) [请求时间: ${dateStr}]`;
+            })
+            .join("\n");
+        } else {
+          urgentListText = "无";
+        }
       }
     } catch (err: any) {
       console.error("Error fetching pending same-day leads for daily report:", err.message);
