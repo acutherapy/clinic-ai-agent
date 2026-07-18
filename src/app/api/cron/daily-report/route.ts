@@ -389,6 +389,7 @@ If no new valid clinic-related questions or local terms are found, output exactl
     // Fetch pending same-day requests for Dr. Cai
     let urgentListText = "无";
     let pendingCount = 0;
+    let pendingBreakdownText = "无";
     try {
       const { data: pendingLeads } = await supabase
         .from("leads")
@@ -397,6 +398,37 @@ If no new valid clinic-related questions or local terms are found, output exactl
         .order("same_day_requested_at", { ascending: false });
 
       if (pendingLeads && pendingLeads.length > 0) {
+        // Group and count status
+        const statusCounts: Record<string, number> = {};
+        pendingLeads.forEach((l: any) => {
+          const status = l.status || "未知";
+          statusCounts[status] = (statusCounts[status] || 0) + 1;
+        });
+
+        const statusLabels: Record<string, string> = {
+          "ongoing": "正在治疗 (Ongoing)",
+          "ONGOING": "正在治疗 (Ongoing)",
+          "booked": "已预约 (Booked)",
+          "BOOKED": "已预约 (Booked)",
+          "contacted": "已跟进 (Contacted)",
+          "CONTACTED": "已跟进 (Contacted)",
+          "show up": "已就诊 (Show Up)",
+          "show_up": "已就诊 (Show Up)",
+          "canceled": "已取消 (Canceled)",
+          "cancelled": "已取消 (Canceled)",
+          "no coverage": "无保险覆盖 (No Coverage)",
+          "no_coverage": "无保险覆盖 (No Coverage)",
+          "nolonger interested": "无意向 (Not Interested)",
+          "no longer interested": "无意向 (Not Interested)",
+        };
+
+        pendingBreakdownText = Object.entries(statusCounts)
+          .map(([status, count]) => {
+            const label = statusLabels[status] || status;
+            return `   - ${label}: ${count} 个`;
+          })
+          .join("\n");
+
         // Exclude leads that are already booked, canceled, show up (visited), no coverage, or not interested
         const activePendingLeads = pendingLeads.filter((l: any) => {
           const status = (l.status || "").toLowerCase().trim();
@@ -429,7 +461,10 @@ If no new valid clinic-related questions or local terms are found, output exactl
     const reportMessage = `
 📊 Emma 每日工作汇报 (${reportDateStr})
 
-⚠️ 待回复当天预约请求 (Unanswered Same-day Requests):
+⚠️ 待跟进客户汇总 (Leads Pending Action):
+${pendingBreakdownText}
+
+📋 需回复新客名单 (Active Action List):
 ${urgentListText}
 
 1. 新客线索 (Leads Received): ${leadsCount} 个 (当天/Today)
