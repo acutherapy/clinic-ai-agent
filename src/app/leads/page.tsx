@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { 
   Search, MessageSquare, Calendar, UserCheck, Play, Pause, 
@@ -34,7 +34,8 @@ export default function LeadsDashboard() {
     total: 0,
     pendingTakeover: 0,
     booked: 0,
-    followingUp: 0
+    followingUp: 0,
+    win: 0
   });
 
   // Editor State
@@ -51,8 +52,8 @@ export default function LeadsDashboard() {
   const [savingLead, setSavingLead] = useState(false);
 
   const statusOptions = [
-    "NEW", "CONTACTED", "BOOKED", "OPTED_OUT",
-    "contacted", "booked", "answered", "no respond", "show up", "no show",
+    "NEW", "CONTACTED", "BOOKED", "WIN", "OPTED_OUT",
+    "contacted", "booked", "win", "answered", "no respond", "show up", "no show",
     "following up 1", "following up 2", "following up 3", "following up 4",
     "finished", "ongoing", "canceled", "nolonger interested", "no coverage", "others"
   ];
@@ -79,12 +80,12 @@ export default function LeadsDashboard() {
         (l.status || "").toLowerCase().includes("following up") || 
         l.status === "CONTACTED"
       ).length;
+      const win = loadedLeads.filter(l => l.status === "WIN" || l.status === "win").length;
 
-      setStats({ total, pendingTakeover, booked, followingUp });
+      setStats({ total, pendingTakeover, booked, followingUp, win });
 
-      // Calculate conversion rate: (booked + ongoing) / total
-      const ongoingCount = loadedLeads.filter(l => l.status === "ongoing" || l.status === "ONGOING").length;
-      const rate = total > 0 ? Math.round(((booked + ongoingCount) / total) * 100) : 0;
+      // Calculate conversion rate: win / total
+      const rate = total > 0 ? Math.round((win / total) * 100) : 0;
       setConversionRate(rate);
 
       // Count all statuses
@@ -100,7 +101,7 @@ export default function LeadsDashboard() {
         .sort((a, b) => b.count - a.count);
 
       // Filter out the main ones that are already in the first row to avoid redundancy
-      const excluded = ["NEW", "CONTACTED", "BOOKED", "new", "contacted", "booked"];
+      const excluded = ["NEW", "CONTACTED", "BOOKED", "WIN", "new", "contacted", "booked", "win"];
       const topOtherStatuses = sortedStatuses
         .filter(item => !excluded.includes(item.status))
         .slice(0, 4);
@@ -143,9 +144,64 @@ export default function LeadsDashboard() {
     }
   }
 
-  // Initial load
+  // Keep a ref of selectedLead to avoid re-subscribing realtime listener on selectedLead change
+  const selectedLeadRef = useRef<any>(null);
+  useEffect(() => {
+    selectedLeadRef.current = selectedLead;
+  }, [selectedLead]);
+
+  // Initial load & Supabase Realtime Subscription + 60s fallback polling
   useEffect(() => {
     fetchLeads();
+
+    // Subscribe to leads table changes in real-time
+    const leadsChannel = supabase
+      .channel("leads-realtime-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "leads" },
+        (payload) => {
+          console.log("Realtime leads update received:", payload);
+          fetchLeads();
+        }
+      )
+      .subscribe();
+
+    // Subscribe to chat message updates so the open chat window updates in real-time
+    const chatChannel = supabase
+      .channel("chat-realtime-changes")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "sms_conversations" },
+        (payload) => {
+          console.log("Realtime message received:", payload);
+          fetchLeads();
+          const currentLead = selectedLeadRef.current;
+          if (currentLead) {
+            const formattedSelected = formatPhoneE164(currentLead.phone);
+            const formattedIncoming = formatPhoneE164(payload.new.phone);
+            if (formattedSelected === formattedIncoming) {
+              fetchChat(currentLead.phone);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    // Fallback polling interval every 60 seconds
+    const fallbackInterval = setInterval(() => {
+      fetchLeads();
+      const currentLead = selectedLeadRef.current;
+      if (currentLead) {
+        fetchChat(currentLead.phone);
+      }
+    }, 60000);
+
+    return () => {
+      supabase.removeChannel(leadsChannel);
+      supabase.removeChannel(chatChannel);
+      clearInterval(fallbackInterval);
+    };
   }, []);
 
   // Fetch chat when lead is selected
@@ -171,6 +227,11 @@ export default function LeadsDashboard() {
   // Apply filters
   useEffect(() => {
     let result = [...leads];
+
+    // Exclude "win" / "WIN" from the list by default (unless "WIN" / "win" status filter is explicitly selected)
+    if (statusFilter !== "WIN" && statusFilter !== "win") {
+      result = result.filter(l => l.status !== "WIN" && l.status !== "win");
+    }
 
     // Search term
     if (searchTerm) {
@@ -201,15 +262,27 @@ export default function LeadsDashboard() {
   // Change lead status
   async function handleStatusChange(leadId: string, newStatus: string) {
     try {
+      // If new status is WIN or win, automatically pause Emma and clear pending reply
+      const updates: any = { status: newStatus };
+      if (newStatus === "WIN" || newStatus === "win") {
+        updates.pause_emma = true;
+        updates.pending_human_reply = false;
+      }
+
       const { error } = await supabase
         .from("leads")
-        .update({ status: newStatus })
+        .update(updates)
         .eq("id", leadId);
 
       if (error) throw error;
       
       // Update local state quickly
-      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus } : l));
+      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, ...updates } : l));
+      
+      // Clear selected lead if it was the one marked as win (since it is filtered out)
+      if ((newStatus === "WIN" || newStatus === "win") && selectedLeadRef.current?.id === leadId) {
+        setSelectedLead(null);
+      }
     } catch (err: any) {
       alert("Failed to update status: " + err.message);
     }
@@ -316,7 +389,7 @@ export default function LeadsDashboard() {
           </div>
           <div 
             className="bg-blue-50 text-blue-600 w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xs shadow-inner"
-            title="Deal Rate (Booked + Ongoing) / Total Leads"
+            title="Conversion Rate (Win / Total Leads)"
           >
             {conversionRate}%
           </div>
@@ -353,14 +426,14 @@ export default function LeadsDashboard() {
         {/* Card 4 */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex items-center justify-between transition-all duration-300 hover:shadow-md">
           <div>
-            <p className="text-sm font-medium text-slate-500">Active Follow-Ups</p>
-            <h3 className="text-3xl font-black text-indigo-600 mt-1">{stats.followingUp}</h3>
+            <p className="text-sm font-medium text-slate-500">Converted (Win)</p>
+            <h3 className="text-3xl font-black text-indigo-600 mt-1">{stats.win}</h3>
           </div>
           <div 
             className="bg-indigo-50 text-indigo-600 w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xs shadow-inner"
-            title="Percentage of active follow-ups"
+            title="Percentage of converted leads"
           >
-            {stats.total > 0 ? Math.round((stats.followingUp / stats.total) * 100) : 0}%
+            {stats.total > 0 ? Math.round((stats.win / stats.total) * 100) : 0}%
           </div>
         </div>
       </section>
@@ -779,6 +852,7 @@ export default function LeadsDashboard() {
 
 function getStatusColor(status: string) {
   const s = status.toLowerCase();
+  if (s.includes("win")) return { bg: "bg-emerald-50", text: "text-emerald-600", iconBg: "bg-emerald-50" };
   if (s.includes("ongoing")) return { bg: "bg-teal-50", text: "text-teal-600", iconBg: "bg-teal-50" };
   if (s.includes("no respond") || s.includes("no response")) return { bg: "bg-rose-50", text: "text-rose-600", iconBg: "bg-rose-50" };
   if (s.includes("no coverage")) return { bg: "bg-amber-50", text: "text-amber-600", iconBg: "bg-amber-50" };

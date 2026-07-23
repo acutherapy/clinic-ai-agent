@@ -410,6 +410,8 @@ If no new valid clinic-related questions or local terms are found, output exactl
           "ONGOING": "正在治疗 (Ongoing)",
           "booked": "已预约 (Booked)",
           "BOOKED": "已预约 (Booked)",
+          "win": "成功转化 (Win)",
+          "WIN": "成功转化 (Win)",
           "contacted": "已跟进 (Contacted)",
           "CONTACTED": "已跟进 (Contacted)",
           "show up": "已就诊 (Show Up)",
@@ -429,10 +431,10 @@ If no new valid clinic-related questions or local terms are found, output exactl
           })
           .join("\n");
 
-        // Exclude leads that are already booked, canceled, show up (visited), no coverage, or not interested
+        // Exclude leads that are already booked, converted (win), canceled, show up (visited), no coverage, or not interested
         const activePendingLeads = pendingLeads.filter((l: any) => {
           const status = (l.status || "").toLowerCase().trim();
-          return !["booked", "show up", "show_up", "canceled", "cancelled", "no coverage", "no_coverage", "nolonger interested", "no longer interested", "opted_out"].includes(status);
+          return !["booked", "win", "show up", "show_up", "canceled", "cancelled", "no coverage", "no_coverage", "nolonger interested", "no longer interested", "opted_out"].includes(status);
         });
 
         pendingCount = activePendingLeads.length;
@@ -453,6 +455,26 @@ If no new valid clinic-related questions or local terms are found, output exactl
       console.error("Error fetching pending same-day leads for daily report:", err.message);
     }
 
+    // Fetch total wins and total leads to calculate conversion metrics
+    let totalWinsCount = 0;
+    let totalLeadsCount = 0;
+    try {
+      const { count: winsCount } = await supabase
+        .from("leads")
+        .select("id", { count: "exact", head: true })
+        .in("status", ["win", "WIN"]);
+      totalWinsCount = winsCount || 0;
+
+      const { count: leadsCount } = await supabase
+        .from("leads")
+        .select("id", { count: "exact", head: true });
+      totalLeadsCount = leadsCount || 0;
+    } catch (err: any) {
+      console.error("Error fetching win conversion stats for daily report:", err.message);
+    }
+
+    const conversionRate = totalLeadsCount > 0 ? Math.round((totalWinsCount / totalLeadsCount) * 100) : 0;
+
     // 6. Format SMS report to Dr. Cai
     const reportDateStr = `${todayYyyy}/${todayMm}/${todayDd}`;
     const leadsCount = newLeads?.length || 0;
@@ -469,7 +491,8 @@ ${urgentListText}
 
 1. 新客线索 (Leads Received): ${leadsCount} 个 (当天/Today)
 2. 预约成功 (Successful Bookings): ${bookingsCount} 个 (当天/Today)
-3. 短信统计 (SMS Traffic): (当天/Today)
+3. 成功转化 (Converted Wins): ${totalWinsCount} 个 (总数/Total) [转化率: ${conversionRate}%]
+4. 短信统计 (SMS Traffic): (当天/Today)
    - 总计发送/接收: ${totalMsg} 条
    - 收到患者短信: ${inboundMsg} 条
    - AI 发送短信: ${outboundMsg} 条
