@@ -431,10 +431,10 @@ If no new valid clinic-related questions or local terms are found, output exactl
           })
           .join("\n");
 
-        // Exclude leads that are already booked, converted (win), canceled, show up (visited), no coverage, or not interested
+        // Exclude leads that are already booked, converted (win / finished), canceled, show up (visited), no coverage, or not interested
         const activePendingLeads = pendingLeads.filter((l: any) => {
           const status = (l.status || "").toLowerCase().trim();
-          return !["booked", "win", "show up", "show_up", "canceled", "cancelled", "no coverage", "no_coverage", "nolonger interested", "no longer interested", "opted_out"].includes(status);
+          return !["booked", "win", "finished", "show up", "show_up", "canceled", "cancelled", "no coverage", "no_coverage", "nolonger interested", "no longer interested", "opted_out"].includes(status);
         });
 
         pendingCount = activePendingLeads.length;

@@ -69,7 +69,11 @@ export default function LeadsDashboard() {
 
       if (error) throw error;
 
-      const loadedLeads = data || [];
+      // Map database 'finished' status to client 'WIN' status
+      const loadedLeads = (data || []).map((l: any) => ({
+        ...l,
+        status: l.status === "finished" ? "WIN" : l.status
+      }));
       setLeads(loadedLeads);
       
       // Calculate Stats
@@ -263,7 +267,9 @@ export default function LeadsDashboard() {
   async function handleStatusChange(leadId: string, newStatus: string) {
     try {
       // If new status is WIN or win, automatically pause Emma and clear pending reply
-      const updates: any = { status: newStatus };
+      // Also map 'WIN'/'win' to 'finished' database status
+      const dbStatus = (newStatus === "WIN" || newStatus === "win") ? "finished" : newStatus;
+      const updates: any = { status: dbStatus };
       if (newStatus === "WIN" || newStatus === "win") {
         updates.pause_emma = true;
         updates.pending_human_reply = false;
@@ -276,8 +282,9 @@ export default function LeadsDashboard() {
 
       if (error) throw error;
       
-      // Update local state quickly
-      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, ...updates } : l));
+      // Update local state quickly (keep status as client-side 'WIN' so filters work)
+      const localUpdates = { ...updates, status: newStatus };
+      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, ...localUpdates } : l));
       
       // Clear selected lead if it was the one marked as win (since it is filtered out)
       if ((newStatus === "WIN" || newStatus === "win") && selectedLeadRef.current?.id === leadId) {
