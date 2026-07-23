@@ -52,10 +52,10 @@ export default function LeadsDashboard() {
   const [savingLead, setSavingLead] = useState(false);
 
   const statusOptions = [
-    "NEW", "CONTACTED", "BOOKED", "WIN", "OPTED_OUT",
+    "NEW", "CONTACTED", "BOOKED", "WIN",
     "contacted", "booked", "win", "answered", "no respond", "show up", "no show",
     "following up 1", "following up 2", "following up 3", "following up 4",
-    "finished", "ongoing", "canceled", "nolonger interested", "no coverage", "others"
+    "ongoing"
   ];
 
   // Load leads
