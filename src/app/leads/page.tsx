@@ -232,9 +232,22 @@ export default function LeadsDashboard() {
   useEffect(() => {
     let result = [...leads];
 
-    // Exclude "win" / "WIN" from the list by default (unless "WIN" / "win" status filter is explicitly selected)
-    if (statusFilter !== "WIN" && statusFilter !== "win") {
-      result = result.filter(l => l.status !== "WIN" && l.status !== "win");
+    // Status filter
+    if (statusFilter === "ALL") {
+      // By default, only keep active leads that need ongoing follow-up/action
+      const activeStatuses = [
+        "new", "contacted", "booked", "answered", 
+        "ongoing", "ongoing_sms", 
+        "following up 1", "following up 2", "following up 3", "following up 4", "following up", 
+        "no respond", "no response", "no show"
+      ];
+      result = result.filter(l => {
+        const s = (l.status || "new").toLowerCase().trim();
+        return activeStatuses.includes(s);
+      });
+    } else {
+      // If a specific status filter is selected, show that status exactly
+      result = result.filter(l => (l.status || "").toLowerCase().trim() === statusFilter.toLowerCase().trim());
     }
 
     // Search term
@@ -246,11 +259,6 @@ export default function LeadsDashboard() {
         (l.condition || "").toLowerCase().includes(lower) ||
         (l.notes || "").toLowerCase().includes(lower)
       );
-    }
-
-    // Status filter
-    if (statusFilter !== "ALL") {
-      result = result.filter(l => l.status === statusFilter);
     }
 
     // Emma takeover filter
