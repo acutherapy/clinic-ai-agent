@@ -197,9 +197,60 @@ export default function ClinicalHub() {
     }
   }
 
+  // Custom handler to parse comma-separated pastes/inputs instantly
+  async function handleIcdSearchChange(val: string, isCaseCreator: boolean) {
+    if (isCaseCreator) {
+      setNewCaseSearchQuery(val);
+      if (val.includes(",")) {
+        const rawCodes = val.split(",").map(c => c.trim()).filter(Boolean);
+        const codesNoDots = rawCodes.map(c => c.replace(/\./g, "").toUpperCase());
+        const { data, error } = await supabase
+          .from("icd10_codes")
+          .select("code, short_description")
+          .in("code", codesNoDots);
+        
+        if (!error && data && data.length > 0) {
+          setNewCaseIcds(prev => {
+            const existing = new Set(prev.map(x => x.code));
+            const newAdded = data.filter(d => !existing.has(d.code));
+            return [...prev, ...newAdded];
+          });
+          setNewCaseSearchQuery("");
+          setNewCaseSearchIcds([]);
+        }
+      }
+    } else {
+      setSearchQuery(val);
+      if (val.includes(",")) {
+        const rawCodes = val.split(",").map(c => c.trim()).filter(Boolean);
+        const codesNoDots = rawCodes.map(c => c.replace(/\./g, "").toUpperCase());
+        const { data, error } = await supabase
+          .from("icd10_codes")
+          .select("code, short_description")
+          .in("code", codesNoDots);
+        
+        if (!error && data && data.length > 0) {
+          setActiveDiagnoses(prev => {
+            const existing = new Set(prev.map(x => x.icdCode));
+            const newAdded = data.filter(d => !existing.has(d.code)).map(d => ({
+              icdCode: d.code,
+              complaintText: d.short_description,
+              painLevel: 6
+            }));
+            return [...prev, ...newAdded];
+          });
+          setSearchQuery("");
+          setIcdResults([]);
+        }
+      }
+    }
+  }
+
   // ICD-10 Autocomplete search for SOAP note
   useEffect(() => {
-    if (searchQuery.length < 2) {
+    const rawQuery = searchQuery.trim();
+    const cleanQuery = rawQuery.replace(/\./g, "");
+    if (cleanQuery.length < 2) {
       setIcdResults([]);
       return;
     }
@@ -209,7 +260,7 @@ export default function ClinicalHub() {
         const { data, error } = await supabase
           .from("icd10_codes")
           .select("code, short_description")
-          .or(`code.ilike.%${searchQuery}%,short_description.ilike.%${searchQuery}%`)
+          .or(`code.ilike.%${cleanQuery}%,code_with_separator.ilike.%${rawQuery}%,short_description.ilike.%${rawQuery}%`)
           .limit(8);
 
         if (!error && data) {
@@ -227,7 +278,9 @@ export default function ClinicalHub() {
 
   // ICD-10 Autocomplete search for Case Creator
   useEffect(() => {
-    if (newCaseSearchQuery.length < 2) {
+    const rawQuery = newCaseSearchQuery.trim();
+    const cleanQuery = rawQuery.replace(/\./g, "");
+    if (cleanQuery.length < 2) {
       setNewCaseSearchIcds([]);
       return;
     }
@@ -236,7 +289,7 @@ export default function ClinicalHub() {
         const { data, error } = await supabase
           .from("icd10_codes")
           .select("code, short_description")
-          .or(`code.ilike.%${newCaseSearchQuery}%,short_description.ilike.%${newCaseSearchQuery}%`)
+          .or(`code.ilike.%${cleanQuery}%,code_with_separator.ilike.%${rawQuery}%,short_description.ilike.%${rawQuery}%`)
           .limit(6);
 
         if (!error && data) {
@@ -808,13 +861,31 @@ export default function ClinicalHub() {
                       <label className="text-xs font-extrabold uppercase text-emerald-800 flex items-center gap-1.5">
                         <Check className="h-4 w-4 text-emerald-600" /> Fix Case ICD-10 Diagnosis Codes (Add 3-4 codes)
                       </label>
-                      <input 
-                        type="text"
-                        placeholder="Search ICD-10 and click result to add... (e.g. M54.2, Shoulder pain)"
-                        value={newCaseSearchQuery}
-                        onChange={(e) => setNewCaseSearchQuery(e.target.value)}
-                        className="w-full px-4 py-2 bg-white border border-emerald-100 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      />
+                      <div className="flex gap-2">
+                        <input 
+                          type="text"
+                          placeholder="Search ICD-10 or paste multiple separated by commas... (e.g. M25.512, M25.522)"
+                          value={newCaseSearchQuery}
+                          onChange={(e) => handleIcdSearchChange(e.target.value, true)}
+                          className="flex-1 px-4 py-2 bg-white border border-emerald-100 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (newCaseSearchQuery.trim()) {
+                              const customCode = newCaseSearchQuery.replace(/\./g, "").trim().toUpperCase();
+                              setNewCaseIcds(prev => [
+                                ...prev,
+                                { code: customCode, short_description: "Custom case complaint" }
+                              ]);
+                              setNewCaseSearchQuery("");
+                            }
+                          }}
+                          className="bg-slate-850 hover:bg-slate-750 text-white text-xs font-bold px-4 py-2 rounded-xl transition"
+                        >
+                          Add Custom
+                        </button>
+                      </div>
 
                       {/* Dropdown Results */}
                       {newCaseSearchIcds.length > 0 && (
@@ -928,20 +999,38 @@ export default function ClinicalHub() {
                       </div>
                     ) : (
                       <div className="relative">
-                        <input 
-                          type="text"
-                          placeholder="Search ICD-10 codes or descriptions... (e.g. Cervicalgia, M54)"
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
-                        />
+                        <div className="flex gap-2">
+                          <input 
+                            type="text"
+                            placeholder="Search ICD-10 or paste multiple separated by commas... (e.g. M25.512, M25.522)"
+                            value={searchQuery}
+                            onChange={(e) => handleIcdSearchChange(e.target.value, false)}
+                            className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (searchQuery.trim()) {
+                                const customCode = searchQuery.replace(/\./g, "").trim().toUpperCase();
+                                setActiveDiagnoses(prev => [
+                                  ...prev,
+                                  { icdCode: customCode, complaintText: "Custom clinical complaint", painLevel: 6 }
+                                ]);
+                                setSearchQuery("");
+                              }
+                            }}
+                            className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-2xl transition"
+                          >
+                            Add Custom
+                          </button>
+                        </div>
                         {searchingIcd && (
-                          <span className="absolute right-4 top-3 text-xs text-slate-400 animate-pulse">Searching...</span>
+                          <span className="absolute right-32 top-3.5 text-xs text-slate-400 animate-pulse">Searching...</span>
                         )}
 
                         {/* Results dropdown */}
                         {icdResults.length > 0 && (
-                          <div className="absolute left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-lg z-20 max-h-60 overflow-y-auto divide-y divide-slate-100">
+                          <div className="absolute left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-lg z-20 max-h-60 overflow-y-auto divide-y divide-slate-100 font-sans">
                             {icdResults.map((item) => (
                               <button
                                 key={item.code}
