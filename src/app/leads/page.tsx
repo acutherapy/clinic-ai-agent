@@ -386,6 +386,12 @@ export default function LeadsDashboard() {
             {loading ? "Refreshing..." : "Refresh"}
           </button>
           <a 
+            href="/clinical-hub"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all duration-200 flex items-center gap-1"
+          >
+            Clinical SOAP Hub ⚡
+          </a>
+          <a 
             href="/"
             className="bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all duration-200"
           >
