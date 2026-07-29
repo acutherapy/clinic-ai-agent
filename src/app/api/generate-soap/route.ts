@@ -219,11 +219,15 @@ CPT 97814 Additional 15 minutes of personal one-on-one contact with the Patient 
 Your goal is to prevent insurance auditors from flagging successive daily SOAP notes as duplicate/cloned boilerplate templates.
 Analyze the raw SOAP note sections provided and naturally rephrase their narrative flows.
 
-CRITICAL AUDITING INSTRUCTIONS:
+CRITICAL FORMATTING & AUDITING INSTRUCTIONS:
 1. NARRATIVE VARIATION: Actively diversify the phrasing, sentence structures, and transitional words. Make sure consecutive visits look uniquely written while conveying the same medical reality.
 2. CLINICAL INTEGRITY: Do NOT change, omit, or add any clinical codes (like CPT 97813, 97814, 97124 or ICD codes), specific acupuncture points (like LI-4, SP-6, BL-62), pain scales (like 7/10), or physical modalities (like Electrical, Massage, Heat lamp, Supine position). Keep them 100% intact.
 3. NO PREFIXES: Do not include labels like "Subjective:", "Objective:", "Assessment:", "Plan:" inside the returned values. Start directly with the polished text.
-4. Return your response as a JSON object matching this schema:
+4. FORMAT RETENTION:
+   - For 'objective': Keep it formatted as a line-by-line list, with one diagnosis/complaint and its pain level per line. DO NOT merge/flatten them into a single continuous paragraph.
+   - For 'assessment': Keep it formatted as a line-by-line list, with one ICD code and complaint description per line. DO NOT merge/flatten them into a single continuous paragraph.
+   - For 'plan': Keep separate paragraphs for each CPT segment (e.g. CPT 97813, 97814 or CPT 97124 blocks), separated by empty lines/newlines. Also keep the position description, Extra Meridian Principle, co-treatments, and care plan in separate paragraphs. DO NOT merge the entire plan section into one squashed paragraph.
+5. Return your response as a JSON object matching this schema:
 {
   "subjective": "Polished subjective text",
   "objective": "Polished objective text",

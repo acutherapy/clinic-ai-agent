@@ -644,9 +644,35 @@ export default function ClinicalHub() {
     }
   }
 
-  // Copy to clipboard helper
+  // Copy to clipboard helper (Supports rich text HTML copy with bold labels so pasting into Word/EMR preserves bold text)
   function handleCopy(text: string, sectionName: string) {
-    navigator.clipboard.writeText(text);
+    let plainText = text;
+    let htmlText = text.replace(/\n/g, '<br/>');
+
+    if (sectionName !== "ALL") {
+      const upperLabel = sectionName.toUpperCase();
+      plainText = `**${upperLabel}:**\n${text}`;
+      htmlText = `<strong>${upperLabel}:</strong><br/>${text.replace(/\n/g, '<br/>')}`;
+    } else if (soapOutput) {
+      plainText = `**SUBJECTIVE:**\n${soapOutput.subjective}\n\n**OBJECTIVE:**\n${soapOutput.objective}\n\n**ASSESSMENT:**\n${soapOutput.assessment}\n\n**PLAN:**\n${soapOutput.plan}`;
+      htmlText = `<strong>SUBJECTIVE:</strong><br/>${soapOutput.subjective.replace(/\n/g, '<br/>')}<br/><br/><strong>OBJECTIVE:</strong><br/>${soapOutput.objective.replace(/\n/g, '<br/>')}<br/><br/><strong>ASSESSMENT:</strong><br/>${soapOutput.assessment.replace(/\n/g, '<br/>')}<br/><br/><strong>PLAN:</strong><br/>${soapOutput.plan.replace(/\n/g, '<br/>')}`;
+    }
+
+    if (navigator.clipboard && window.ClipboardItem) {
+      const textBlob = new Blob([plainText], { type: "text/plain" });
+      const htmlBlob = new Blob([htmlText], { type: "text/html" });
+      const item = new ClipboardItem({
+        "text/plain": textBlob,
+        "text/html": htmlBlob
+      });
+      navigator.clipboard.write([item]).catch(() => {
+        // Fallback to simple plaintext copy if security policy blocks rich-text
+        navigator.clipboard.writeText(plainText);
+      });
+    } else {
+      navigator.clipboard.writeText(plainText);
+    }
+
     setCopiedSection(sectionName);
     setTimeout(() => setCopiedSection(null), 2000);
   }
@@ -654,8 +680,7 @@ export default function ClinicalHub() {
   // Copy ALL sections combined
   function handleCopyAll() {
     if (!soapOutput) return;
-    const combined = `SUBJECTIVE:\n${soapOutput.subjective}\n\nOBJECTIVE:\n${soapOutput.objective}\n\nASSESSMENT:\n${soapOutput.assessment}\n\nPLAN:\n${soapOutput.plan}`;
-    handleCopy(combined, "ALL");
+    handleCopy("", "ALL");
   }
 
   const positions = ["Supine", "Prone", "Right Side", "Left Side", "On Chair"];
