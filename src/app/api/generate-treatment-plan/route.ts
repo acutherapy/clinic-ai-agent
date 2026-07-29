@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
         </div>
 
         <!-- Section: Patient & Insurance Grid Info (图 1 - Last row deleted) -->
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 11px;">
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 12.5px;">
           <tbody>
             <tr>
               <td style="width: 15%; font-weight: bold; border: 1px solid #111; padding: 4.5px; background-color: #f8fafc;">Patient Name:</td>
@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
           <strong style="text-transform: uppercase;">Specific Time Schedule of Measurable Objectives:</strong>
           <div style="margin-left: 12px; margin-top: 4px;">
             <div><strong>1. Baseline measurement at start of treatment plan:</strong> Pain Level is <strong>${baselinePain}/10</strong> (on a 0 to 10 scale, 10 being most).</div>
-            <div style="margin-top: 2px;"><strong>2. Work Tolerance:</strong> <strong>${workTolerance || "Sedentary-Light (11-15)"}</strong>.</div>
+            <div style="margin-top: 2px;"><strong>2. Work Tolerance:</strong> ${workTolerance || "Sedentary-Light (11-15)"}.</div>
             <div style="margin-top: 2px;"><strong>3. Projected goal at end of treatment plan:</strong> Pain Level is expected to reduce to <strong>${projectedPain}/10</strong> (on a 0 to 10 scale).</div>
             <div style="margin-top: 2px;"><strong>4. Expected outcome at completion of treatment plan:</strong> Pain reduced and functional mobility improved to pre-injury status.</div>
           </div>
