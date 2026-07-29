@@ -181,37 +181,67 @@ CPT 97814 Additional 15 minutes of personal one-on-one contact with the Patient 
 
     planNotes += "\n\nCare Plan: Will continue acupuncture after re-evaluating patient.";
 
-    // 5. OPTIONAL OPENAI CLINICAL POLISH
-    let polishedSubjective = subjectiveNotes;
-    try {
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: "You are a professional medical scribe specializing in US acupuncture documentation. Clean up the grammar and medical phrasing of the Subjective note while keeping it concise and factual. Do not add any new symptoms not mentioned in the source. CRITICAL: Do NOT output any prefix like 'Subjective:' or 'Subjective Note:'. Start directly with the polished statement of what the patient reports."
-          },
-          {
-            role: "user",
-            content: subjectiveNotes
-          }
-        ]
-      });
-      let polished = response.choices[0]?.message?.content;
-      if (polished) {
-        // Post-process safety regex to strip "Subjective: " if still returned
-        polished = polished.replace(/^subjective:\s*/i, "").trim();
-        polishedSubjective = polished;
-      }
-    } catch (openAiErr) {
-      console.warn("OpenAI polish failed, using default subjective text:", openAiErr);
-    }
-
-    return NextResponse.json({
-      subjective: polishedSubjective,
+    // 5. OPENAI FULL SOAP CLINICAL POLISHING (Prevents billing duplicate/cloning audit flags)
+    let polishedSOAP = {
+      subjective: subjectiveNotes,
       objective: objectiveNotes,
       assessment: assessmentNotes,
       plan: planNotes
+    };
+
+    try {
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        response_format: { type: "json_object" },
+        temperature: 0.85, // Higher temperature to ensure distinct phrasing on each visit request
+        messages: [
+          {
+            role: "system",
+            content: `You are an expert clinical medical scribe specializing in US insurance auditing and acupuncture documentation. 
+Your goal is to prevent insurance auditors from flagging successive daily SOAP notes as duplicate/cloned boilerplate templates.
+Analyze the raw SOAP note sections provided and naturally rephrase their narrative flows.
+
+CRITICAL AUDITING INSTRUCTIONS:
+1. NARRATIVE VARIATION: Actively diversify the phrasing, sentence structures, and transitional words. Make sure consecutive visits look uniquely written while conveying the same medical reality.
+2. CLINICAL INTEGRITY: Do NOT change, omit, or add any clinical codes (like CPT 97813, 97814, or ICD codes), specific acupuncture points (like LI-4, SP-6, BL-62), pain scales (like 7/10), or physical modalities (like Electrical, Heat lamp, Supine position). Keep them 100% intact.
+3. NO PREFIXES: Do not include labels like "Subjective:", "Objective:", "Assessment:", "Plan:" inside the returned values. Start directly with the polished text.
+4. Return your response as a JSON object matching this schema:
+{
+  "subjective": "Polished subjective text",
+  "objective": "Polished objective text",
+  "assessment": "Polished assessment text",
+  "plan": "Polished plan text"
+}`
+          },
+          {
+            role: "user",
+            content: JSON.stringify({
+              subjective: subjectiveNotes,
+              objective: objectiveNotes,
+              assessment: assessmentNotes,
+              plan: planNotes
+            })
+          }
+        ]
+      });
+
+      const resText = response.choices[0]?.message?.content;
+      if (resText) {
+        const parsed = JSON.parse(resText);
+        if (parsed.subjective) polishedSOAP.subjective = parsed.subjective.replace(/^subjective:\s*/i, "").trim();
+        if (parsed.objective) polishedSOAP.objective = parsed.objective.replace(/^objective:\s*/i, "").trim();
+        if (parsed.assessment) polishedSOAP.assessment = parsed.assessment.replace(/^assessment:\s*/i, "").trim();
+        if (parsed.plan) polishedSOAP.plan = parsed.plan.replace(/^plan:\s*/i, "").trim();
+      }
+    } catch (openAiErr) {
+      console.warn("OpenAI full SOAP polish failed, falling back to raw notes:", openAiErr);
+    }
+
+    return NextResponse.json({
+      subjective: polishedSOAP.subjective,
+      objective: polishedSOAP.objective,
+      assessment: polishedSOAP.assessment,
+      plan: polishedSOAP.plan
     });
   } catch (error: any) {
     console.error("SOAP Note generation endpoint error:", error);
