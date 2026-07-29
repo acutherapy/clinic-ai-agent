@@ -39,6 +39,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (isWebhook && (record.pause_emma === true || record.pause_emma === 'true')) {
+      console.log(`Lead ${name} (${phone}) has pause_emma set to true. Skipping automatic greeting and outreach SMS.`);
+      return NextResponse.json({
+        success: true,
+        skipped: true,
+        reason: "EMMA_PAUSED",
+        lead: record
+      });
+    }
+
     const cleanPhone = phone.replace(/\D/g, "");
     const cleanPhone10 = cleanPhone.slice(-10);
 

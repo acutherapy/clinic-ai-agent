@@ -51,6 +51,69 @@ export default function LeadsDashboard() {
   const [editClaimNumber, setEditClaimNumber] = useState("");
   const [savingLead, setSavingLead] = useState(false);
 
+  // Add Patient Modal State
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addName, setAddName] = useState("");
+  const [addPhone, setAddPhone] = useState("");
+  const [addEmail, setAddEmail] = useState("");
+  const [addCondition, setAddCondition] = useState("");
+  const [addLocation, setAddLocation] = useState("");
+  const [addNotes, setAddNotes] = useState("Manually added patient. Automated AI messaging disabled.");
+  const [addDob, setAddDob] = useState("");
+  const [addStatus, setAddStatus] = useState("ongoing");
+  const [addingLead, setAddingLead] = useState(false);
+
+  // Add New Patient directly to leads table with pause_emma = true
+  async function handleAddPatient(e: React.FormEvent) {
+    e.preventDefault();
+    if (!addName.trim() || !addPhone.trim()) {
+      alert("Please provide both Patient Name and Phone Number.");
+      return;
+    }
+    setAddingLead(true);
+    try {
+      const { data, error } = await supabase
+        .from("leads")
+        .insert({
+          name: addName.trim(),
+          phone: addPhone.trim(),
+          email: addEmail.trim() || null,
+          condition: addCondition.trim() || null,
+          location: addLocation || null,
+          notes: addNotes,
+          dob: addDob || null,
+          status: addStatus,
+          pause_emma: true, // Crucial: Emma is paused!
+          pending_human_reply: true, // Block any automated cron triggers
+          preferred_contact: "Text"
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      alert(`🎉 New patient "${addName}" added successfully. AI automated SMS outreach is disabled for this record.`);
+      
+      // Reset form & close modal
+      setAddName("");
+      setAddPhone("");
+      setAddEmail("");
+      setAddCondition("");
+      setAddLocation("");
+      setAddNotes("Manually added patient. Automated AI messaging disabled.");
+      setAddDob("");
+      setAddStatus("ongoing");
+      setShowAddModal(false);
+
+      // Refresh list
+      await fetchLeads();
+    } catch (err: any) {
+      alert("Failed to add patient: " + err.message);
+    } finally {
+      setAddingLead(false);
+    }
+  }
+
   const statusOptions = [
     "NEW", "CONTACTED", "BOOKED", "WIN", "OPTED_OUT",
     "contacted", "booked", "win", "answered", "no respond", "show up", "no show",
@@ -385,6 +448,13 @@ export default function LeadsDashboard() {
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             {loading ? "Refreshing..." : "Refresh"}
           </button>
+          <button 
+            onClick={() => setShowAddModal(true)}
+            className="bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all duration-200 flex items-center gap-1.5"
+          >
+            <User className="h-4 w-4" />
+            Add Patient (No SMS)
+          </button>
           <a 
             href="/clinical-hub"
             className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all duration-200 flex items-center gap-1"
@@ -393,7 +463,7 @@ export default function LeadsDashboard() {
           </a>
           <a 
             href="/"
-            className="bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all duration-200"
+            className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold px-4 py-2 rounded-xl transition-all duration-200"
           >
             Go to Lead Form ➔
           </a>
@@ -867,6 +937,147 @@ export default function LeadsDashboard() {
           )}
         </section>
       </main>
+      {/* ADD NEW PATIENT MODAL (🔒 NO SMS OUTREACH) */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-slate-200/80 shadow-2xl w-full max-w-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-slate-900 text-white p-6 flex justify-between items-center">
+              <div>
+                <h3 className="font-extrabold text-base flex items-center gap-2">
+                  <User className="h-5 w-5 text-emerald-400" /> Register Patient (SMS Disabled 🔒)
+                </h3>
+                <p className="text-[10px] text-slate-300 mt-1">
+                  Create a record directly. Emma AI communications will be completely disabled.
+                </p>
+              </div>
+              <button 
+                onClick={() => setShowAddModal(false)}
+                className="p-1.5 hover:bg-slate-800 rounded-full transition-all text-slate-400 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleAddPatient} className="p-6 space-y-4 font-sans">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Patient Name"
+                    value={addName}
+                    onChange={(e) => setAddName(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Phone Number *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Phone"
+                    value={addPhone}
+                    onChange={(e) => setAddPhone(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Email Address</label>
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    value={addEmail}
+                    onChange={(e) => setAddEmail(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Date of Birth (DOB)</label>
+                  <input
+                    type="text"
+                    placeholder="MM/DD/YYYY"
+                    value={addDob}
+                    onChange={(e) => setAddDob(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Initial Condition / Diagnosis</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Back Pain"
+                    value={addCondition}
+                    onChange={(e) => setAddCondition(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Initial Clinic Location</label>
+                  <select
+                    value={addLocation}
+                    onChange={(e) => setAddLocation(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  >
+                    <option value="">Select Location</option>
+                    <option value="Honolulu">Honolulu Clinic</option>
+                    <option value="Aiea">Aiea Clinic</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase text-slate-400">Case Status</label>
+                <select
+                  value={addStatus}
+                  onChange={(e) => setAddStatus(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                >
+                  <option value="ongoing">ongoing (常规进行中)</option>
+                  <option value="BOOKED">BOOKED (已预约就诊)</option>
+                  <option value="NEW">NEW (新登入)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase text-slate-400">Staff Internal Notes</label>
+                <textarea
+                  value={addNotes}
+                  onChange={(e) => setAddNotes(e.target.value)}
+                  rows={2}
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900 resize-none"
+                />
+              </div>
+
+              {/* Submit Actions */}
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-700 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={addingLead}
+                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-emerald-600/10"
+                >
+                  {addingLead ? "Adding..." : "Confirm & Add Patient"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
