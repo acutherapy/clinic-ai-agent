@@ -111,7 +111,7 @@ export default function ClinicalHub() {
   const [planProjectedPain, setPlanProjectedPain] = useState(3);
   const [planWorkTolerance, setPlanWorkTolerance] = useState("Sedentary-Light (11-15)");
   const [planPrognosis, setPlanPrognosis] = useState("GUARDED");
-  const [planServiceType, setPlanServiceType] = useState("Acupuncture treatment");
+  const [planServiceType, setPlanServiceType] = useState("Acupuncture & Medical Massage");
   const [planPreparedBy, setPlanPreparedBy] = useState("DAVID CAI");
 
   function handleOpenTreatmentPlanModal() {
@@ -123,7 +123,7 @@ export default function ClinicalHub() {
     setPlanServiceType(
       selectedCase.case_type === "auto_injury" 
         ? "Acupuncture & Medical Massage" 
-        : "Acupuncture treatment"
+        : "Acupuncture"
     );
     setPlanPreparedBy(selectedCase.treating_doctor || "DAVID CAI");
     setPlanHtml(null);
@@ -1744,13 +1744,16 @@ export default function ClinicalHub() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold uppercase text-slate-400">Work Tolerance Classification</label>
-                        <input
-                          type="text"
-                          required
+                        <select
                           value={planWorkTolerance}
                           onChange={(e) => setPlanWorkTolerance(e.target.value)}
-                          className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900"
-                        />
+                          className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                        >
+                          <option value="Sedentary-Light (11-15)">Sedentary-Light (11-15)</option>
+                          <option value="Light (16-20)">Light (16-20)</option>
+                          <option value="Medium (21-25)">Medium (21-25)</option>
+                          <option value="Heavy (26+)">Heavy (26+)</option>
+                        </select>
                       </div>
 
                       <div className="space-y-1">
@@ -1773,13 +1776,15 @@ export default function ClinicalHub() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold uppercase text-slate-400">Type of Service Request Description</label>
-                      <input
-                        type="text"
-                        required
+                      <select
                         value={planServiceType}
                         onChange={(e) => setPlanServiceType(e.target.value)}
-                        className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900"
-                      />
+                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                      >
+                        <option value="Acupuncture & Medical Massage">Acupuncture & Medical Massage</option>
+                        <option value="Acupuncture">Acupuncture</option>
+                        <option value="Medical Massage">Medical Massage</option>
+                      </select>
                     </div>
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold uppercase text-slate-400">Prepared By (Signature name)</label>
