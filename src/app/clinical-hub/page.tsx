@@ -19,7 +19,8 @@ import {
   Briefcase,
   Lock,
   PlusCircle,
-  FolderOpen
+  FolderOpen,
+  X
 } from "lucide-react";
 
 export default function ClinicalHub() {
@@ -98,6 +99,87 @@ export default function ClinicalHub() {
 
   // Copy Feedback state
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
+
+  // Treatment Plan States & Actions
+  const [showPlanModal, setShowPlanModal] = useState(false);
+  const [planHtml, setPlanHtml] = useState<string | null>(null);
+  const [generatingPlan, setGeneratingPlan] = useState(false);
+  const [planSessions, setPlanSessions] = useState(15);
+  const [planDays, setPlanDays] = useState(120);
+  const [planStartDate, setPlanStartDate] = useState("");
+  const [planBaselinePain, setPlanBaselinePain] = useState(7);
+  const [planProjectedPain, setPlanProjectedPain] = useState(3);
+  const [planWorkTolerance, setPlanWorkTolerance] = useState("Sedentary-Light (11-15)");
+  const [planPrognosis, setPlanPrognosis] = useState("GUARDED");
+  const [planServiceType, setPlanServiceType] = useState("Acupuncture treatment");
+  const [planPreparedBy, setPlanPreparedBy] = useState("DAVID CAI");
+
+  function handleOpenTreatmentPlanModal() {
+    if (!selectedLead || !selectedCase) return;
+    const today = new Date().toISOString().split("T")[0];
+    setPlanStartDate(today);
+    const firstPain = activeDiagnoses[0]?.painLevel || 7;
+    setPlanBaselinePain(firstPain);
+    setPlanServiceType(
+      selectedCase.case_type === "auto_injury" 
+        ? "Acupuncture & Medical Massage" 
+        : "Acupuncture treatment"
+    );
+    setPlanPreparedBy(selectedCase.treating_doctor || "DAVID CAI");
+    setPlanHtml(null);
+    setShowPlanModal(true);
+  }
+
+  async function handleGenerateTreatmentPlan() {
+    if (!selectedLead || !selectedCase) return;
+    setGeneratingPlan(true);
+    try {
+      const diagnosesPayload = activeDiagnoses.map(d => ({
+        code: d.icdCode,
+        description: d.complaintText
+      }));
+
+      const res = await fetch("/api/generate-treatment-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patientName: selectedLead.name,
+          dob: selectedLead.dob,
+          claimNumber: selectedCase.claim_number,
+          doi: selectedCase.injury_date,
+          insuranceCo: selectedCase.insurance_carrier,
+          adjusterName: selectedCase.adjuster_name,
+          officeAddress: selectedCase.claim_mailing_address || "Honolulu Clinic",
+          phone: selectedCase.adjuster_phone,
+          fax: selectedCase.adjuster_fax,
+          preparedBy: planPreparedBy,
+          preparedByPhone: "(808) 528-7177",
+          diagnoses: diagnosesPayload,
+          serviceType: planServiceType,
+          requestedSessions: planSessions,
+          requestedDays: planDays,
+          startDate: planStartDate,
+          baselinePain: planBaselinePain,
+          projectedPain: planProjectedPain,
+          workTolerance: planWorkTolerance,
+          prognosis: planPrognosis,
+          treatingPhysician: selectedCase.treating_doctor || "Choon Kia Yeo M.D.",
+          clinicName: "AcuTherapy Clinics"
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setPlanHtml(data.html);
+      } else {
+        alert("Failed to generate plan: " + data.error);
+      }
+    } catch (err: any) {
+      alert("Failed to generate plan: " + err.message);
+    } finally {
+      setGeneratingPlan(false);
+    }
+  }
 
   // Fetch leads on mount
   useEffect(() => {
@@ -1378,11 +1460,21 @@ export default function ClinicalHub() {
                   </div>
 
                   {/* Generate Button */}
-                  <div className="flex justify-end pt-2">
+                  <div className="flex flex-col sm:flex-row justify-end gap-3 pt-2">
+                    {selectedCase && (
+                      <button
+                        type="button"
+                        onClick={handleOpenTreatmentPlanModal}
+                        className="bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-extrabold text-sm px-6 py-3 rounded-2xl transition-all duration-300 shadow-sm flex items-center justify-center gap-2"
+                      >
+                        <FileText className="h-4.5 w-4.5 text-emerald-600" />
+                        Generate Treatment Plan Report 📋
+                      </button>
+                    )}
                     <button
                       onClick={handleGenerateSOAP}
                       disabled={generating}
-                      className="w-full md:w-auto bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-extrabold text-sm px-6 py-3 rounded-2xl transition-all duration-300 shadow-md shadow-slate-900/10 flex items-center justify-center gap-2"
+                      className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-extrabold text-sm px-6 py-3 rounded-2xl transition-all duration-300 shadow-md shadow-slate-900/10 flex items-center justify-center gap-2"
                     >
                       {generating ? (
                         <>
@@ -1514,6 +1606,274 @@ export default function ClinicalHub() {
         </main>
 
       </div>
+
+      {/* TREATMENT PLAN GENERATOR MODAL (🔒 PRINT-READY HAWAII WC / AUTO INSURANCE SHEET) */}
+      {showPlanModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-slate-200/80 shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200 font-sans">
+            
+            {/* Header */}
+            <div className="bg-slate-900 text-white p-5 flex justify-between items-center shrink-0">
+              <div>
+                <h3 className="font-extrabold text-base flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-emerald-400" /> Hawaii Workers' Comp & PIP Treatment Plan Generator
+                </h3>
+                <p className="text-[10px] text-slate-300 mt-1">
+                  Generate insurance authorization requests complying with Hawaii HAR statutory 7-day automatic approval laws.
+                </p>
+              </div>
+              <button 
+                onClick={() => setShowPlanModal(false)}
+                className="p-1.5 hover:bg-slate-800 rounded-full transition-all text-slate-400 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {!planHtml ? (
+                /* STEP 1: CONFIGURATION FORM */
+                <form onSubmit={(e) => { e.preventDefault(); handleGenerateTreatmentPlan(); }} className="space-y-6">
+                  
+                  {/* Grid 1: Basic Claims Info (Read-Only references from Case Profile) */}
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3">
+                    <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider">Linked Case Profile Details</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                      <div>
+                        <span className="text-[10px] text-slate-400 block uppercase font-bold">Patient Name</span>
+                        <strong className="text-slate-700">{selectedLead.name} (DOB: {selectedLead.dob || "N/A"})</strong>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 block uppercase font-bold">Insurance Carrier</span>
+                        <strong className="text-slate-700">{selectedCase.insurance_carrier}</strong>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 block uppercase font-bold">Claim Number</span>
+                        <strong className="text-slate-700">{selectedCase.claim_number}</strong>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 block uppercase font-bold">Date of Injury (DOI)</span>
+                        <strong className="text-slate-700">{selectedCase.injury_date || "N/A"}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Grid 2: Interactive Authorization Request Parameters */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase text-slate-400">Request Session Limit</label>
+                      <input
+                        type="number"
+                        required
+                        value={planSessions}
+                        onChange={(e) => setPlanSessions(parseInt(e.target.value) || 15)}
+                        className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase text-slate-400">Duration Limit (Days)</label>
+                      <input
+                        type="number"
+                        required
+                        value={planDays}
+                        onChange={(e) => setPlanDays(parseInt(e.target.value) || 120)}
+                        className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase text-slate-400">Proposed Start Date</label>
+                      <input
+                        type="date"
+                        required
+                        value={planStartDate}
+                        onChange={(e) => setPlanStartDate(e.target.value)}
+                        className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Grid 3: Measurable Objectives (Pain Scale & Work Tolerance) */}
+                  <div className="p-5 rounded-2xl border border-slate-200/80 bg-slate-50/30 space-y-4">
+                    <h4 className="text-xs font-black uppercase text-slate-500 tracking-wider">Measurable Objectives Scale</h4>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Baseline Pain */}
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold uppercase text-slate-400 block">Baseline Pain Level (Start of Treatment Plan)</label>
+                        <div className="flex gap-1.5">
+                          {[0,1,2,3,4,5,6,7,8,9,10].map(val => (
+                            <button
+                              key={val}
+                              type="button"
+                              onClick={() => setPlanBaselinePain(val)}
+                              className={`flex-1 py-1.5 rounded-lg text-xs font-black border transition ${
+                                planBaselinePain === val
+                                  ? "bg-slate-900 border-slate-900 text-white"
+                                  : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                              }`}
+                            >
+                              {val}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Projected Pain */}
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold uppercase text-slate-400 block">Projected Goal Pain Level (End of Treatment Plan)</label>
+                        <div className="flex gap-1.5">
+                          {[0,1,2,3,4,5,6,7,8,9,10].map(val => (
+                            <button
+                              key={val}
+                              type="button"
+                              onClick={() => setPlanProjectedPain(val)}
+                              className={`flex-1 py-1.5 rounded-lg text-xs font-black border transition ${
+                                planProjectedPain === val
+                                  ? "bg-slate-900 border-slate-900 text-white"
+                                  : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                              }`}
+                            >
+                              {val}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase text-slate-400">Work Tolerance Classification</label>
+                        <input
+                          type="text"
+                          required
+                          value={planWorkTolerance}
+                          onChange={(e) => setPlanWorkTolerance(e.target.value)}
+                          className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase text-slate-400">Prognosis Classification</label>
+                        <select
+                          value={planPrognosis}
+                          onChange={(e) => setPlanPrognosis(e.target.value)}
+                          className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                        >
+                          <option value="GUARDED">GUARDED (Will remain guarded pending treatment evaluation)</option>
+                          <option value="FAVORABLE">FAVORABLE (Patient is experiencing positive progress)</option>
+                          <option value="POOR_SLOW">POOR/SLOW (Response is not optimal, possible PPD)</option>
+                          <option value="MMI_PPD">MMI/PPD (Patient is medically stable with residuals)</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Grid 4: Billing Details */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase text-slate-400">Type of Service Request Description</label>
+                      <input
+                        type="text"
+                        required
+                        value={planServiceType}
+                        onChange={(e) => setPlanServiceType(e.target.value)}
+                        className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase text-slate-400">Prepared By (Signature name)</label>
+                      <input
+                        type="text"
+                        required
+                        value={planPreparedBy}
+                        onChange={(e) => setPlanPreparedBy(e.target.value)}
+                        className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Form Submit Footer */}
+                  <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setShowPlanModal(false)}
+                      className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-700 transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={generatingPlan}
+                      className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-slate-900/10"
+                    >
+                      {generatingPlan ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 animate-spin" /> Generating Plan...
+                        </>
+                      ) : (
+                        <>
+                          Generate Plan Report 📋
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                /* STEP 2: PLAN PREVIEW */
+                <div className="space-y-4">
+                  {/* Action controls */}
+                  <div className="flex justify-between items-center bg-slate-50 border border-slate-200 p-4 rounded-2xl">
+                    <div className="text-xs font-semibold text-slate-600">
+                      📄 Report successfully generated. Ready for printing or faxing.
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setPlanHtml(null)}
+                        className="bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold px-4 py-2 rounded-xl transition"
+                      >
+                        ✏️ Edit Config
+                      </button>
+                      <button
+                        onClick={() => {
+                          const printWindow = window.open("", "_blank");
+                          if (printWindow) {
+                            printWindow.document.write(`
+                              <html>
+                                <head>
+                                  <title>Treatment Plan - ${selectedLead.name}</title>
+                                  <style>
+                                    @media print {
+                                      body { margin: 10mm; }
+                                    }
+                                  </style>
+                                </head>
+                                <body onload="window.print(); window.close();">
+                                  ${planHtml}
+                                </body>
+                              </html>
+                            `);
+                            printWindow.document.close();
+                          }
+                        }}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-md shadow-emerald-600/10"
+                      >
+                        Print Report 🖨️
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Print Document Render Frame */}
+                  <div className="border border-slate-200 p-6 rounded-2xl bg-white shadow-inner max-h-[55vh] overflow-y-auto">
+                    <div dangerouslySetInnerHTML={{ __html: planHtml }} />
+                  </div>
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }
