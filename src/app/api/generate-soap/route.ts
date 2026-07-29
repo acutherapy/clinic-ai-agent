@@ -179,7 +179,7 @@ CPT 97814 Additional 15 minutes of personal one-on-one contact with the Patient 
         messages: [
           {
             role: "system",
-            content: "You are a professional medical scribe specializing in US acupuncture documentation. Clean up the grammar and medical phrasing of the Subjective note while keeping it concise and factual. Do not add any new symptoms not mentioned in the source."
+            content: "You are a professional medical scribe specializing in US acupuncture documentation. Clean up the grammar and medical phrasing of the Subjective note while keeping it concise and factual. Do not add any new symptoms not mentioned in the source. CRITICAL: Do NOT output any prefix like 'Subjective:' or 'Subjective Note:'. Start directly with the polished statement of what the patient reports."
           },
           {
             role: "user",
@@ -187,8 +187,12 @@ CPT 97814 Additional 15 minutes of personal one-on-one contact with the Patient 
           }
         ]
       });
-      const polished = response.choices[0]?.message?.content;
-      if (polished) polishedSubjective = polished;
+      let polished = response.choices[0]?.message?.content;
+      if (polished) {
+        // Post-process safety regex to strip "Subjective: " if still returned
+        polished = polished.replace(/^subjective:\s*/i, "").trim();
+        polishedSubjective = polished;
+      }
     } catch (openAiErr) {
       console.warn("OpenAI polish failed, using default subjective text:", openAiErr);
     }
