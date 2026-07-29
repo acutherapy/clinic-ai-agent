@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
         </div>
 
         <div style="text-align: center; margin-bottom: 12px;">
-          <h1 style="margin: 0; font-size: 14px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #111; display: inline-block; padding-bottom: 2px;">
+          <h1 style="margin: 0; font-size: 14px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; display: inline-block; padding-bottom: 2px;">
             Treatment Plan Request
           </h1>
         </div>
@@ -94,9 +94,9 @@ export async function POST(req: NextRequest) {
           </tbody>
         </table>
 
-        <!-- Diagnosis (图 2 - Underline removed) -->
+        <!-- Diagnosis (ICD code等去掉粗体) -->
         <div style="margin-bottom: 8px; font-size: 11.5px;">
-          <strong>Diagnosis:</strong> <span style="font-weight: bold;">${diagString || "None specified"}</span>
+          <strong>Diagnosis:</strong> <span style="font-weight: normal;">${diagString || "None specified"}</span>
         </div>
 
         <!-- Type of Service Request -->
@@ -104,9 +104,9 @@ export async function POST(req: NextRequest) {
           <strong>Type of Service Request:</strong> ${serviceType || "Acupuncture treatment"} at <strong>${clinicName || "AcuTherapy Clinics"}</strong>
         </div>
 
-        <!-- Frequency & Duration (图 2 - Underline removed) -->
+        <!-- Frequency & Duration (not to exceed xx sessions within xx days 也不要粗体) -->
         <div style="margin-bottom: 8px; font-size: 11.5px; line-height: 1.35;">
-          <strong>Frequency & Duration:</strong> <span style="font-weight: bold;">Not to exceed ${requestedSessions || 15} sessions within ${requestedDays || 120} days</span>, with treatment to begin as soon as authorization is received or upon receipt of a treating physician's order. Proposed Start Date: <strong>${formattedStartDate}</strong>.
+          <strong>Frequency & Duration:</strong> <span style="font-weight: normal;">Not to exceed ${requestedSessions || 15} sessions within ${requestedDays || 120} days</span>, with treatment to begin as soon as authorization is received or upon receipt of a treating physician's order. Proposed Start Date: <strong>${formattedStartDate}</strong>.
         </div>
 
         <!-- Estimated Cost -->
@@ -114,40 +114,14 @@ export async function POST(req: NextRequest) {
           <strong>Estimated Cost:</strong> Per the State of Hawaii Workers' Compensation Fee Schedule.
         </div>
 
-        <!-- Specific Time Schedule of Measurable Objectives -->
-        <div style="margin-bottom: 12px; border: 1px solid #e2e8f0; padding: 10px 14px; border-radius: 8px; background-color: #fafafa;">
-          <h3 style="margin-top: 0; margin-bottom: 8px; font-size: 11.5px; font-weight: bold; text-transform: uppercase; color: #334155; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">
-            Specific Time Schedule of Measurable Objectives
-          </h3>
-          
-          <div style="margin-bottom: 8px;">
-            <strong>1. Baseline measurement at start of treatment plan: Pain Level (0 to 10 scale)</strong>
-            <div style="display: flex; gap: 6px; margin-top: 4px;">
-              ${[0,1,2,3,4,5,6,7,8,9,10].map(val => `
-                <span style="border: 1px solid #cbd5e1; padding: 1.5px 6.5px; border-radius: 3px; font-size: 10px; font-weight: bold; ${val === parseInt(baselinePain) ? 'background-color: #0f172a; color: white; border-color: #0f172a;' : 'background-color: white; color: #475569;'}">${val}</span>
-              `).join('')}
-            </div>
-          </div>
-
-          <div style="margin-bottom: 8px; margin-top: 8px;">
-            <strong>2. Work Tolerance:</strong>
-            <div style="margin-top: 2px; font-weight: bold; color: #0f172a;">
-              ☑ ${workTolerance || "Sedentary-Light (11-15)"}
-            </div>
-          </div>
-
-          <div style="margin-bottom: 8px; margin-top: 8px;">
-            <strong>3. Projected goal at end of treatment plan (0 to 10 scale)</strong>
-            <div style="display: flex; gap: 6px; margin-top: 4px;">
-              ${[0,1,2,3,4,5,6,7,8,9,10].map(val => `
-                <span style="border: 1px solid #cbd5e1; padding: 1.5px 6.5px; border-radius: 3px; font-size: 10px; font-weight: bold; ${val === parseInt(projectedPain) ? 'background-color: #0f172a; color: white; border-color: #0f172a;' : 'background-color: white; color: #475569;'}">${val}</span>
-              `).join('')}
-            </div>
-          </div>
-
-          <div style="margin-top: 8px;">
-            <strong>4. Expected outcome at completion of treatment plan:</strong>
-            <div style="margin-top: 2px; color: #334155;">Pain reduced and functional mobility improved to pre-injury status.</div>
+        <!-- Specific Time Schedule of Measurable Objectives (图3 改成正常的文字叙述，不要圈起来) -->
+        <div style="margin-bottom: 12px; font-size: 11.5px; line-height: 1.45;">
+          <strong style="text-transform: uppercase;">Specific Time Schedule of Measurable Objectives:</strong>
+          <div style="margin-left: 12px; margin-top: 4px;">
+            <div><strong>1. Baseline measurement at start of treatment plan:</strong> Pain Level is <strong>${baselinePain}/10</strong> (on a 0 to 10 scale, 10 being most).</div>
+            <div style="margin-top: 2px;"><strong>2. Work Tolerance:</strong> <strong>${workTolerance || "Sedentary-Light (11-15)"}</strong>.</div>
+            <div style="margin-top: 2px;"><strong>3. Projected goal at end of treatment plan:</strong> Pain Level is expected to reduce to <strong>${projectedPain}/10</strong> (on a 0 to 10 scale).</div>
+            <div style="margin-top: 2px;"><strong>4. Expected outcome at completion of treatment plan:</strong> Pain reduced and functional mobility improved to pre-injury status.</div>
           </div>
         </div>
 
@@ -179,7 +153,7 @@ export async function POST(req: NextRequest) {
           *Medical care pursuant to Section 386-21, Hawaii Revised Statutes, relating to the Workers' Compensation Law, is governed by Title 12 Chapter 15, HAR. FAILURE TO COMPLY WITHIN SEVEN CALENDAR DAYS SHALL CONSTITUTE AN AUTOMATIC APPROVAL.
         </div>
 
-        <!-- Signatures Footer (图 3 - Date deleted above line) -->
+        <!-- Signatures Footer -->
         <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 25px; font-size: 11.5px;">
           <div style="width: 50%;">
             <div style="border-bottom: 1px solid #222; width: 85%; height: 25px;"></div>
@@ -192,13 +166,13 @@ export async function POST(req: NextRequest) {
           </div>
         </div>
 
-        <!-- Insurer Approval Area -->
-        <div style="margin-top: 20px; padding-top: 10px; border-top: 1px dashed #cbd5e1; font-size: 9.5px;">
+        <!-- Insurer Approval Area (Adjuster signature and date lines made clear and sharp) -->
+        <div style="margin-top: 20px; padding-top: 10px; border-top: 1.5px dashed #222; font-size: 9.5px;">
           <p style="font-weight: bold; text-transform: uppercase; margin-bottom: 4px; color: #475569;">TO BE COMPLETED BY INSURER:</p>
           <p style="color: #64748b; margin-bottom: 8px; line-height: 1.2;">We accept your request for the treatments for the above referenced patient, subjective to provisions in the Workers' Compensation Statute and its attended rules and regulations, fee schedule, and its applications.</p>
           <div style="display: flex; justify-content: space-between;">
-            <div style="width: 60%; border-bottom: 1px solid #cbd5e1; height: 20px;"></div>
-            <div style="width: 30%; border-bottom: 1px solid #cbd5e1; height: 20px;"></div>
+            <div style="width: 60%; border-bottom: 1.5px solid #222; height: 20px;"></div>
+            <div style="width: 30%; border-bottom: 1.5px solid #222; height: 20px;"></div>
           </div>
           <div style="display: flex; justify-content: space-between; margin-top: 3px; color: #64748b;">
             <span>Adjuster/Approval Signature</span>
