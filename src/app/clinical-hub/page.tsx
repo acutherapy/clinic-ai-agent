@@ -28,6 +28,7 @@ export default function ClinicalHub() {
   const [selectedLead, setSelectedLead] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [activeType, setActiveType] = useState<"acupuncture" | "massage" | null>(null);
   const [saving, setSaving] = useState(false);
 
   // Injury Cases State
@@ -558,12 +559,13 @@ export default function ClinicalHub() {
   }
 
   // Generate SOAP Note
-  async function handleGenerateSOAP() {
+  async function handleGenerateSOAP(noteType: "acupuncture" | "massage" = "acupuncture") {
     if (!selectedLead) {
       alert("Please select a patient first!");
       return;
     }
     setGenerating(true);
+    setActiveType(noteType);
     try {
       const res = await fetch("/api/generate-soap", {
         method: "POST",
@@ -576,7 +578,8 @@ export default function ClinicalHub() {
           activeDiagnoses,
           position,
           principle,
-          additionalTreatments: selectedTreatments
+          additionalTreatments: selectedTreatments,
+          noteType
         })
       });
       const data = await res.json();
@@ -589,6 +592,7 @@ export default function ClinicalHub() {
       alert("Error: " + err.message);
     } finally {
       setGenerating(false);
+      setActiveType(null);
     }
   }
 
@@ -1472,18 +1476,34 @@ export default function ClinicalHub() {
                       </button>
                     )}
                     <button
-                      onClick={handleGenerateSOAP}
+                      onClick={() => handleGenerateSOAP("acupuncture")}
                       disabled={generating}
                       className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-extrabold text-sm px-6 py-3 rounded-2xl transition-all duration-300 shadow-md shadow-slate-900/10 flex items-center justify-center gap-2"
                     >
-                      {generating ? (
+                      {generating && activeType === "acupuncture" ? (
                         <>
                           <RefreshCw className="h-4 w-4 animate-spin" />
-                          Generating SOAP Notes...
+                          Generating Acupuncture SOAP...
                         </>
                       ) : (
                         <>
-                          Generate SOAP Notes ⚡
+                          Generate Acupuncture SOAP ⚡
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleGenerateSOAP("massage")}
+                      disabled={generating}
+                      className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-extrabold text-sm px-6 py-3 rounded-2xl transition-all duration-300 shadow-md shadow-emerald-600/10 flex items-center justify-center gap-2"
+                    >
+                      {generating && activeType === "massage" ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 animate-spin" />
+                          Generating Massage SOAP...
+                        </>
+                      ) : (
+                        <>
+                          Generate Massage SOAP 💆‍♂️
                         </>
                       )}
                     </button>

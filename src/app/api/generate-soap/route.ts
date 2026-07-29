@@ -83,7 +83,8 @@ export async function POST(req: Request) {
       activeDiagnoses, // Array of { icdCode, complaintText, painLevel }
       position,
       principle,
-      additionalTreatments
+      additionalTreatments,
+      noteType // "acupuncture" | "massage"
     } = body;
 
     if (!activeDiagnoses || activeDiagnoses.length === 0) {
@@ -154,7 +155,19 @@ export async function POST(req: Request) {
     }
 
     // 4. PLAN SECTION (Permutation CPT Paragraphs)
-    let planNotes = `CPT 97813 Initial 15 minutes of personal one-on-one contact with the Patient to treat ${obj1}, ${obj2} and ${obj2} area with points of ${p1_a.cleanStr || "Local points"} and with electrical stimulation to ${p1.cleanStr || "Local points"} treat pain relate to the injury.
+    let planNotes = "";
+    if (noteType === "massage") {
+      planNotes = `CPT 97124 Initial 15 minutes of personal one-on-one contact with the Patient to massage for his ${obj1}, ${obj2} and related area and pain relate to the injury.
+
+CPT 97124 Additional 15 minutes of personal one-on-one contact with the Patient to massage for his ${obj2}, ${obj3} and related area and pain relate to the injury.
+
+CPT 97124 Additional 15 minutes of personal one-on-one contact with the Patient to massage for his ${obj3}, ${obj1} and related area and pain relate to the injury.
+
+CPT 97124 Additional 15 minutes of personal one-on-one contact with the Patient to massage for his ${obj1}, ${obj2} and ${obj3} area and pain relate to the injury.
+
+Total 60 minutes of personal one-on-one contact with the Patient.`;
+    } else {
+      planNotes = `CPT 97813 Initial 15 minutes of personal one-on-one contact with the Patient to treat ${obj1}, ${obj2} and ${obj2} area with points of ${p1_a.cleanStr || "Local points"} and with electrical stimulation to ${p1.cleanStr || "Local points"} treat pain relate to the injury.
 
 CPT 97814 Additional 15 minutes of personal one-on-one contact with the Patient to treat ${obj2}, ${obj3} and ${obj1} area with re-insertion of needle to ${p2_a.cleanStr || "Local points"}; and with electrical stimulation to ${p2.cleanStr || "Local points"} treat pain relate to the injury.
 
@@ -162,24 +175,29 @@ CPT 97814 Additional 15 minutes of personal one-on-one contact with the Patient 
 
 CPT 97814 Additional 15 minutes of personal one-on-one contact with the Patient to treat ${obj1}, ${obj2} and ${obj3} area with re-insertion of needle to ${p4_a.cleanStr || "Local points"} and with electrical stimulation to ${p4.cleanStr || "Local points"} treat pain relate to the injury.`;
 
-    // Add manual retention for head points if any were removed
-    if (removedHeadPointsSet.size > 0) {
-      const headList = Array.from(removedHeadPointsSet).join(", ");
-      planNotes += `\n\nAdditionally, acupuncture needles were manually inserted and retained at ${headList} for systemic balancing and calming without electrical stimulation.`;
+      // Add manual retention for head points if any were removed
+      if (removedHeadPointsSet.size > 0) {
+        const headList = Array.from(removedHeadPointsSet).join(", ");
+        planNotes += `\n\nAdditionally, acupuncture needles were manually inserted and retained at ${headList} for systemic balancing and calming without electrical stimulation.`;
+      }
     }
 
     // Append position, principle, and modalities to Plan
     if (position) {
       planNotes += `\n\nPatient was treated in the ${position} position.`;
     }
-    if (principle) {
+    if (noteType !== "massage" && principle) {
       planNotes += `\nBalanced using Extra Meridian Principle: ${principle}.`;
     }
     if (additionalTreatments && additionalTreatments.length > 0) {
       planNotes += `\nCo-treatments administered: ${additionalTreatments.join(", ")}.`;
     }
 
-    planNotes += "\n\nCare Plan: Will continue acupuncture after re-evaluating patient.";
+    if (noteType === "massage") {
+      planNotes += "\n\nCare Plan: Will continue medical massage therapy sessions as authorized.";
+    } else {
+      planNotes += "\n\nCare Plan: Will continue acupuncture after re-evaluating patient.";
+    }
 
     // 5. OPENAI FULL SOAP CLINICAL POLISHING (Prevents billing duplicate/cloning audit flags)
     let polishedSOAP = {
@@ -197,13 +215,13 @@ CPT 97814 Additional 15 minutes of personal one-on-one contact with the Patient 
         messages: [
           {
             role: "system",
-            content: `You are an expert clinical medical scribe specializing in US insurance auditing and acupuncture documentation. 
+            content: `You are an expert clinical medical scribe specializing in US insurance auditing and acupuncture / medical massage documentation. 
 Your goal is to prevent insurance auditors from flagging successive daily SOAP notes as duplicate/cloned boilerplate templates.
 Analyze the raw SOAP note sections provided and naturally rephrase their narrative flows.
 
 CRITICAL AUDITING INSTRUCTIONS:
 1. NARRATIVE VARIATION: Actively diversify the phrasing, sentence structures, and transitional words. Make sure consecutive visits look uniquely written while conveying the same medical reality.
-2. CLINICAL INTEGRITY: Do NOT change, omit, or add any clinical codes (like CPT 97813, 97814, or ICD codes), specific acupuncture points (like LI-4, SP-6, BL-62), pain scales (like 7/10), or physical modalities (like Electrical, Heat lamp, Supine position). Keep them 100% intact.
+2. CLINICAL INTEGRITY: Do NOT change, omit, or add any clinical codes (like CPT 97813, 97814, 97124 or ICD codes), specific acupuncture points (like LI-4, SP-6, BL-62), pain scales (like 7/10), or physical modalities (like Electrical, Massage, Heat lamp, Supine position). Keep them 100% intact.
 3. NO PREFIXES: Do not include labels like "Subjective:", "Objective:", "Assessment:", "Plan:" inside the returned values. Start directly with the polished text.
 4. Return your response as a JSON object matching this schema:
 {
