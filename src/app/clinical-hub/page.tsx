@@ -34,7 +34,18 @@ export default function ClinicalHub() {
   const [selectedCase, setSelectedCase] = useState<any>(null);
   const [showCreateCaseForm, setShowCreateCaseForm] = useState(false);
 
-  // New Injury Case Form State
+  // New Injury Case Form State - Patient Info (Updates Leads)
+  const [newFirstName, setNewFirstName] = useState("");
+  const [newLastName, setNewLastName] = useState("");
+  const [newDob, setNewDob] = useState("");
+  const [newGender, setNewGender] = useState("his");
+  const [newSsn, setNewSsn] = useState("");
+  const [newAddress, setNewAddress] = useState("");
+  const [newCity, setNewCity] = useState("");
+  const [newState, setNewState] = useState("");
+  const [newZip, setNewZip] = useState("");
+
+  // New Injury Case Form State - Insurance Case Details
   const [newCaseType, setNewCaseType] = useState("auto_injury");
   const [newCarrier, setNewCarrier] = useState("");
   const [newClaimNumber, setNewClaimNumber] = useState("");
@@ -42,12 +53,15 @@ export default function ClinicalHub() {
   const [newAdjusterName, setNewAdjusterName] = useState("");
   const [newAdjusterPhone, setNewAdjusterPhone] = useState("");
   const [newAdjusterFax, setNewAdjusterFax] = useState("");
+  const [newClaimMailingAddress, setNewClaimMailingAddress] = useState("");
   const [newAttorneyName, setNewAttorneyName] = useState("");
   const [newAttorneyPhone, setNewAttorneyPhone] = useState("");
   const [newReferringDoc, setNewReferringDoc] = useState("");
   const [newReferringDocNpi, setNewReferringDocNpi] = useState("");
+  const [newTreatingDoc, setNewTreatingDoc] = useState("");
   const [newDoi, setNewDoi] = useState("");
   const [newIntakeDate, setNewIntakeDate] = useState("");
+  const [newEndDate, setNewEndDate] = useState("");
   const [newAuthVisits, setNewAuthVisits] = useState(12);
   const [newFrequency, setNewFrequency] = useState("2 times per week for 6 weeks");
   const [newCaseIcds, setNewCaseIcds] = useState<any[]>([]);
@@ -58,7 +72,7 @@ export default function ClinicalHub() {
   // Daily SOAP Encounter Form State
   const [encounterDate, setEncounterDate] = useState("");
   const [injuryDate, setInjuryDate] = useState("");
-  const [hasInjury, setHasInjury] = useState(false);
+  const [injuryType, setInjuryType] = useState<"auto" | "work" | null>(null);
   const [position, setPosition] = useState("Supine");
   const [principle, setPrinciple] = useState("BL62 - SI03");
   const [selectedTreatments, setSelectedTreatments] = useState<string[]>([
@@ -97,7 +111,7 @@ export default function ClinicalHub() {
     try {
       const { data, error } = await supabase
         .from("leads")
-        .select("id, name, phone, status, condition, notes, created_at")
+        .select("*")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -129,7 +143,7 @@ export default function ClinicalHub() {
           setActiveDiagnoses([
             { icdCode: "M54.5", complaintText: "Lower Back Pain", painLevel: 6 }
           ]);
-          setHasInjury(false);
+          setInjuryType(null);
           setInjuryDate("");
         }
       } else {
@@ -146,6 +160,21 @@ export default function ClinicalHub() {
     setSelectedLead(patient);
     setSoapOutput(null);
     setShowCreateCaseForm(false);
+
+    // Auto-prefill the case creator patient fields with current profile information
+    const nameParts = (patient.name || "").trim().split(/\s+/);
+    const fName = patient.first_name || nameParts[0] || "";
+    const lName = patient.last_name || nameParts.slice(1).join(" ") || "";
+    setNewFirstName(fName);
+    setNewLastName(lName);
+    setNewDob(patient.dob || "");
+    setNewGender(patient.gender || "his");
+    setNewSsn(patient.ssn || "");
+    setNewAddress(patient.address || "");
+    setNewCity(patient.city || "");
+    setNewState(patient.state || "");
+    setNewZip(patient.zip || "");
+
     fetchPatientCases(patient.id);
   }
 
@@ -153,7 +182,7 @@ export default function ClinicalHub() {
   async function handleSelectCase(injuryCase: any) {
     if (!injuryCase) {
       setSelectedCase(null);
-      setHasInjury(false);
+      setInjuryType(null);
       setInjuryDate("");
       setActiveDiagnoses([
         { icdCode: "M54.5", complaintText: "Lower Back Pain", painLevel: 6 }
@@ -162,7 +191,7 @@ export default function ClinicalHub() {
     }
 
     setSelectedCase(injuryCase);
-    setHasInjury(true);
+    setInjuryType(injuryCase.case_type === "auto_injury" ? "auto" : "work");
     setInjuryDate(injuryCase.injury_date || "");
     
     // Load fixed ICD codes from Case
@@ -366,6 +395,26 @@ export default function ClinicalHub() {
 
     setCreatingCase(true);
     try {
+      // 1. First, save patient info back to leads table
+      const { error: leadUpdateErr } = await supabase
+        .from("leads")
+        .update({
+          first_name: newFirstName,
+          last_name: newLastName,
+          name: `${newFirstName} ${newLastName}`.trim(),
+          dob: newDob,
+          gender: newGender,
+          ssn: newSsn,
+          address: newAddress,
+          city: newCity,
+          state: newState,
+          zip: newZip
+        })
+        .eq("id", selectedLead.id);
+
+      if (leadUpdateErr) throw leadUpdateErr;
+
+      // 2. Next, create the new injury case
       const { data, error } = await supabase
         .from("injury_cases")
         .insert({
@@ -377,12 +426,15 @@ export default function ClinicalHub() {
           adjuster_name: newAdjusterName,
           adjuster_phone: newAdjusterPhone,
           adjuster_fax: newAdjusterFax,
+          claim_mailing_address: newClaimMailingAddress,
           attorney_name: newAttorneyName,
           attorney_phone: newAttorneyPhone,
           referring_doctor: newReferringDoc,
           referring_doctor_npi: newReferringDocNpi,
+          treating_doctor: newTreatingDoc,
           injury_date: newDoi || null,
           intake_date: newIntakeDate || null,
+          end_date: newEndDate || null,
           authorized_visits: newAuthVisits,
           treatment_frequency: newFrequency,
           active_icd_codes: newCaseIcds.map(x => x.code)
@@ -392,25 +444,29 @@ export default function ClinicalHub() {
 
       if (error) throw error;
 
-      alert("🎉 Injury Case successfully created and active!");
+      alert("🎉 Patient record updated and Injury Case successfully created!");
       
-      // Reset Case Form
+      // Reset Case Form Details
       setNewCarrier("");
       setNewClaimNumber("");
       setNewPolicyHolder("");
       setNewAdjusterName("");
       setNewAdjusterPhone("");
       setNewAdjusterFax("");
+      setNewClaimMailingAddress("");
       setNewAttorneyName("");
       setNewAttorneyPhone("");
       setNewReferringDoc("");
       setNewReferringDocNpi("");
+      setNewTreatingDoc("");
       setNewDoi("");
       setNewIntakeDate("");
+      setNewEndDate("");
       setNewCaseIcds([]);
       setShowCreateCaseForm(false);
 
-      // Refresh cases list and select the new case
+      // Refresh patient list and cases
+      await fetchLeads();
       await fetchPatientCases(selectedLead.id);
     } catch (err: any) {
       alert("Failed to create case: " + err.message);
@@ -433,7 +489,8 @@ export default function ClinicalHub() {
         body: JSON.stringify({
           patientId: selectedLead.id,
           encounterDate,
-          injuryDate: hasInjury ? injuryDate : null,
+          injuryDate: injuryType ? injuryDate : null,
+          injuryType,
           activeDiagnoses,
           position,
           principle,
@@ -465,7 +522,7 @@ export default function ClinicalHub() {
           patient_id: selectedLead.id,
           case_id: selectedCase?.id || null,
           encounter_date: encounterDate,
-          injury_date: hasInjury ? injuryDate : null,
+          injury_date: injuryType ? injuryDate : null,
           pain_levels: activeDiagnoses.reduce((acc, d) => {
             acc[d.icdCode] = d.painLevel;
             return acc;
@@ -693,173 +750,303 @@ export default function ClinicalHub() {
                   </div>
 
                   <form onSubmit={handleCreateInjuryCase} className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {/* Case Type */}
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500">Case Type</label>
-                        <select
-                          value={newCaseType}
-                          onChange={(e) => setNewCaseType(e.target.value)}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
-                        >
-                          <option value="auto_injury">Auto Injury / PIP (车祸)</option>
-                          <option value="workers_comp">Workers' Compensation (工伤)</option>
-                        </select>
-                      </div>
-
-                      {/* Carrier */}
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500">Insurance Carrier (e.g. Geico, State Farm)</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="e.g. Geico Auto"
-                          value={newCarrier}
-                          onChange={(e) => setNewCarrier(e.target.value)}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
-                        />
-                      </div>
-
-                      {/* Claim Number */}
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500">Claim Number (理赔号)</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="e.g. 9876543-A"
-                          value={newClaimNumber}
-                          onChange={(e) => setNewClaimNumber(e.target.value)}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
-                        />
-                      </div>
-
-                      {/* Policy Holder */}
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500">Policy Holder Name (optional)</label>
-                        <input
-                          type="text"
-                          placeholder="If different from Patient"
-                          value={newPolicyHolder}
-                          onChange={(e) => setNewPolicyHolder(e.target.value)}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
-                        />
-                      </div>
-
-                      {/* Dates */}
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500">Date of Injury (DOI 受伤日期)</label>
-                        <input
-                          type="date"
-                          required
-                          value={newDoi}
-                          onChange={(e) => setNewDoi(e.target.value)}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
-                        />
-                      </div>
-
-                      {/* Intake Date */}
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500">Intake / First Visit Date</label>
-                        <input
-                          type="date"
-                          required
-                          value={newIntakeDate}
-                          onChange={(e) => setNewIntakeDate(e.target.value)}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Adjuster / Attorney contact Info */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500">Adjuster Name</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. John Miller"
-                          value={newAdjusterName}
-                          onChange={(e) => setNewAdjusterName(e.target.value)}
-                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500">Adjuster Phone</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. 808-123-4567"
-                          value={newAdjusterPhone}
-                          onChange={(e) => setNewAdjusterPhone(e.target.value)}
-                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500">Adjuster Fax</label>
-                        <input
-                          type="text"
-                          placeholder="For sending updates"
-                          value={newAdjusterFax}
-                          onChange={(e) => setNewAdjusterFax(e.target.value)}
-                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500">Attorney Name / Firm</label>
-                        <input
-                          type="text"
-                          placeholder="Law offices..."
-                          value={newAttorneyName}
-                          onChange={(e) => setNewAttorneyName(e.target.value)}
-                          className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        />
+                    
+                    {/* SECTION 1: Patient Personal Demographics (图 1) */}
+                    <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-200/50 space-y-4">
+                      <h4 className="text-xs font-black uppercase text-slate-500 tracking-wider border-b border-slate-200/60 pb-2">
+                        1. Patient Personal Info
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-slate-400">First Name</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="First Name"
+                            value={newFirstName}
+                            onChange={(e) => setNewFirstName(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-slate-400">Last Name</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="Last Name"
+                            value={newLastName}
+                            onChange={(e) => setNewLastName(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-slate-400">Date of Birth (DOB)</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. 10/24/1988"
+                            value={newDob}
+                            onChange={(e) => setNewDob(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-slate-400">Sex (Gender)</label>
+                          <select
+                            value={newGender}
+                            onChange={(e) => setNewGender(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          >
+                            <option value="her">female (her)</option>
+                            <option value="his">male (his)</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-slate-400">SSN (optional)</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. 000-00-0000"
+                            value={newSsn}
+                            onChange={(e) => setNewSsn(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div className="space-y-1 md:col-span-2">
+                          <label className="text-[10px] font-bold uppercase text-slate-400">Street Address</label>
+                          <input
+                            type="text"
+                            placeholder="Street Address"
+                            value={newAddress}
+                            onChange={(e) => setNewAddress(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-slate-400">City</label>
+                          <input
+                            type="text"
+                            placeholder="City"
+                            value={newCity}
+                            onChange={(e) => setNewCity(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-slate-400">State</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. HI"
+                            value={newState}
+                            onChange={(e) => setNewState(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-slate-400">Zip Code</label>
+                          <input
+                            type="text"
+                            placeholder="Zip"
+                            value={newZip}
+                            onChange={(e) => setNewZip(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
                       </div>
                     </div>
 
-                    {/* Referrals & Therapy Details */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500">Referring Physician (MD)</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. Dr. Robert Kim"
-                          value={newReferringDoc}
-                          onChange={(e) => setNewReferringDoc(e.target.value)}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500">Referring MD NPI</label>
-                        <input
-                          type="text"
-                          placeholder="10-digit NPI code"
-                          value={newReferringDocNpi}
-                          onChange={(e) => setNewReferringDocNpi(e.target.value)}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500">Authorized Visits (授权次数)</label>
-                        <input
-                          type="number"
-                          value={newAuthVisits}
-                          onChange={(e) => setNewAuthVisits(parseInt(e.target.value))}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-500">Treatment Frequency</label>
-                        <input
-                          type="text"
-                          value={newFrequency}
-                          onChange={(e) => setNewFrequency(e.target.value)}
-                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        />
+                    {/* SECTION 2: Insurance Claim Information (图 2) */}
+                    <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-200/50 space-y-4">
+                      <h4 className="text-xs font-black uppercase text-slate-500 tracking-wider border-b border-slate-200/60 pb-2">
+                        2. Insurance / Claim Details
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-slate-400">Case Type</label>
+                          <select
+                            value={newCaseType}
+                            onChange={(e) => setNewCaseType(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          >
+                            <option value="auto_injury">🚗 Auto Injury / PIP</option>
+                            <option value="workers_comp">💼 Workers' Compensation</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-slate-400">Insurance Carrier</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. State Farm"
+                            value={newCarrier}
+                            onChange={(e) => setNewCarrier(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-slate-400">Claim Number (Claim #)</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="Claim #"
+                            value={newClaimNumber}
+                            onChange={(e) => setNewClaimNumber(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-slate-400">Policy Holder</label>
+                          <input
+                            type="text"
+                            placeholder="Self / Other"
+                            value={newPolicyHolder}
+                            onChange={(e) => setNewPolicyHolder(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-slate-400">Date of Injury (DOI)</label>
+                          <input
+                            type="date"
+                            required
+                            value={newDoi}
+                            onChange={(e) => setNewDoi(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div className="space-y-1 md:col-span-3">
+                          <label className="text-[10px] font-bold uppercase text-slate-400">Claim Mailing Address</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. 1600 Kapiolani Blvd #1520 Honolulu HI 96814"
+                            value={newClaimMailingAddress}
+                            onChange={(e) => setNewClaimMailingAddress(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-slate-400">Adjuster Name</label>
+                          <input
+                            type="text"
+                            placeholder="Adjuster Name"
+                            value={newAdjusterName}
+                            onChange={(e) => setNewAdjusterName(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-slate-400">Adjuster Phone</label>
+                          <input
+                            type="text"
+                            placeholder="Adjuster Phone"
+                            value={newAdjusterPhone}
+                            onChange={(e) => setNewAdjusterPhone(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-slate-400">Adjuster Fax</label>
+                          <input
+                            type="text"
+                            placeholder="Adjuster Fax"
+                            value={newAdjusterFax}
+                            onChange={(e) => setNewAdjusterFax(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-slate-400">Attorney & Phone</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Davis Law, 808-999-9999"
+                            value={newAttorneyName}
+                            onChange={(e) => setNewAttorneyName(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
                       </div>
                     </div>
 
-                    {/* Fixed Case ICD-10 Search */}
+                    {/* SECTION 3: Treating / Referring Doctor & Visit Info (图 3) */}
+                    <div className="bg-slate-50/50 p-5 rounded-2xl border border-slate-200/50 space-y-4">
+                      <h4 className="text-xs font-black uppercase text-slate-500 tracking-wider border-b border-slate-200/60 pb-2">
+                        3. Clinical Referrals & Program Schedule
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-slate-400">Treating Doctor</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Choon Kia Yeo M.D."
+                            value={newTreatingDoc}
+                            onChange={(e) => setNewTreatingDoc(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-slate-400">Referring MD</label>
+                          <input
+                            type="text"
+                            placeholder="Referring Doctor"
+                            value={newReferringDoc}
+                            onChange={(e) => setNewReferringDoc(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-slate-400">Referring NPI</label>
+                          <input
+                            type="text"
+                            placeholder="MD NPI#"
+                            value={newReferringDocNpi}
+                            onChange={(e) => setNewReferringDocNpi(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-slate-400">First Visit Date</label>
+                          <input
+                            type="date"
+                            required
+                            value={newIntakeDate}
+                            onChange={(e) => setNewIntakeDate(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-slate-400">Authorized Visits</label>
+                          <input
+                            type="number"
+                            required
+                            value={newAuthVisits}
+                            onChange={(e) => setNewAuthVisits(parseInt(e.target.value))}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-slate-400">Treatment Frequency</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. 3 times per week for 5 weeks"
+                            value={newFrequency}
+                            onChange={(e) => setNewFrequency(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold uppercase text-slate-400">End Date (optional)</label>
+                          <input
+                            type="date"
+                            value={newEndDate}
+                            onChange={(e) => setNewEndDate(e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* SECTION 4: Fixed Case ICD-10 Codes (图 4) */}
                     <div className="space-y-3 p-4 bg-emerald-50/20 border border-emerald-200/50 rounded-2xl">
                       <label className="text-xs font-extrabold uppercase text-emerald-800 flex items-center gap-1.5">
-                        <Check className="h-4 w-4 text-emerald-600" /> Fix Case ICD-10 Diagnosis Codes (Add 3-4 codes)
+                        <Check className="h-4 w-4 text-emerald-600" /> 4. Fix Case ICD-10 Diagnosis Codes (Add 3-4 codes)
                       </label>
                       <div className="flex gap-2">
                         <input 
@@ -889,7 +1076,7 @@ export default function ClinicalHub() {
 
                       {/* Dropdown Results */}
                       {newCaseSearchIcds.length > 0 && (
-                        <div className="bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto divide-y divide-slate-100 mt-1">
+                        <div className="bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto divide-y divide-slate-100 mt-1 z-10 relative">
                           {newCaseSearchIcds.map(item => (
                             <button
                               type="button"
@@ -962,26 +1149,66 @@ export default function ClinicalHub() {
                         />
                       </div>
 
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-2">
-                          <input 
-                            type="checkbox" 
-                            id="injuryCheck"
-                            disabled={!!selectedCase} // Disable changing check if locked to case
-                            checked={hasInjury}
-                            onChange={(e) => setHasInjury(e.target.checked)}
-                            className="rounded text-emerald-600 focus:ring-emerald-500"
-                          />
-                          <label htmlFor="injuryCheck" className="text-[10px] font-bold uppercase text-slate-400 cursor-pointer">Injury Claim DOI</label>
+                      <div className="flex flex-col gap-1.5">
+                        <span className="text-[10px] font-bold uppercase text-slate-400">Injury Case Type</span>
+                        <div className="flex items-center gap-3">
+                          <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
+                            <input 
+                              type="radio" 
+                              name="injuryTypeSelect"
+                              disabled={!!selectedCase} // Disable if locked to case
+                              checked={injuryType === "auto"}
+                              onChange={() => {
+                                setInjuryType("auto");
+                              }}
+                              className="text-emerald-600 focus:ring-emerald-500"
+                            />
+                            🚗 Auto Accident
+                          </label>
+
+                          <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
+                            <input 
+                              type="radio" 
+                              name="injuryTypeSelect"
+                              disabled={!!selectedCase} // Disable if locked to case
+                              checked={injuryType === "work"}
+                              onChange={() => {
+                                setInjuryType("work");
+                              }}
+                              className="text-emerald-600 focus:ring-emerald-500"
+                            />
+                            💼 Work Injury
+                          </label>
+
+                          <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
+                            <input 
+                              type="radio" 
+                              name="injuryTypeSelect"
+                              disabled={!!selectedCase} // Disable if locked to case
+                              checked={injuryType === null}
+                              onChange={() => {
+                                setInjuryType(null);
+                                setInjuryDate("");
+                              }}
+                              className="text-emerald-600 focus:ring-emerald-500"
+                            />
+                            None (General)
+                          </label>
                         </div>
-                        <input 
-                          type="date"
-                          disabled={!hasInjury || !!selectedCase} // Locked if case exists
-                          value={injuryDate}
-                          onChange={(e) => setInjuryDate(e.target.value)}
-                          className="mt-1 px-3 py-1.5 bg-slate-50 disabled:opacity-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        />
                       </div>
+
+                      {injuryType && (
+                        <div className="flex flex-col">
+                          <label className="text-[10px] font-bold uppercase text-slate-400">Date of Injury (DOI)</label>
+                          <input 
+                            type="date"
+                            disabled={!!selectedCase} // Locked if case exists
+                            value={injuryDate}
+                            onChange={(e) => setInjuryDate(e.target.value)}
+                            className="mt-1 px-3 py-1.5 bg-slate-50 disabled:opacity-75 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
 

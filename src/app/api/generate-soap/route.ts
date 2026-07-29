@@ -79,6 +79,7 @@ export async function POST(req: Request) {
       patientId,
       encounterDate,
       injuryDate,
+      injuryType, // "auto" | "work" | null
       activeDiagnoses, // Array of { icdCode, complaintText, painLevel }
       position,
       principle,
@@ -126,8 +127,17 @@ export async function POST(req: Request) {
     p4.removedPoints.forEach(p => removedHeadPointsSet.add(p));
 
     // 1. SUBJECTIVE SECTION
-    const injuryText = injuryDate ? ` after injury at work/auto on ${injuryDate}` : "";
-    const subjectiveNotes = `${obj1}, ${obj2} and ${obj3} injury pain${injuryText}.`;
+    let injuryText = "";
+    if (injuryDate) {
+      if (injuryType === "auto") {
+        injuryText = ` following an automobile accident on ${injuryDate}`;
+      } else if (injuryType === "work") {
+        injuryText = ` following a work-related injury on ${injuryDate}`;
+      } else {
+        injuryText = ` following an injury on ${injuryDate}`;
+      }
+    }
+    const subjectiveNotes = `${obj1}, ${obj2} and ${obj3} pain${injuryText}.`;
 
     // 2. OBJECTIVE SECTION
     const objectiveNotes = activeDiagnoses.map((d: any) => 
