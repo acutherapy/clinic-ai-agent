@@ -25,6 +25,7 @@ import {
 
 export default function ClinicalHub() {
   const [leads, setLeads] = useState<any[]>([]);
+  const [sidebarSearch, setSidebarSearch] = useState("");
   const [selectedLead, setSelectedLead] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -694,6 +695,27 @@ export default function ClinicalHub() {
     "Fire Cupping", "Pump cupping", "Herbs", "Health guidance", "Introduce TAZ Meditation"
   ];
 
+  const COMMON_INSURERS = [
+    { name: "State Farm", address: "P.O. Box 106171, Atlanta, GA 30348", fax: "(888) 559-3276" },
+    { name: "GEICO", address: "P.O. Box 509119, San Diego, CA 92150", fax: "(877) 206-2227" },
+    { name: "Progressive", address: "P.O. Box 512926, Los Angeles, CA 90051", fax: "(877) 280-5587" },
+    { name: "HEMIC", address: "P.O. Box 3390, Honolulu, HI 96801", fax: "(808) 522-5550" },
+    { name: "First Insurance of Hawaii", address: "P.O. Box 2866, Honolulu, HI 96803", fax: "(808) 540-3580" },
+    { name: "Island Insurance", address: "P.O. Box 1520, Honolulu, HI 96806", fax: "(808) 535-7975" }
+  ];
+
+  const COMMON_REFERRING_MDS = [
+    { name: "Robin Faumuina-Vasai", npi: "1437503406" },
+    { name: "Nikunj Divecha", npi: "1437503406" },
+    { name: "Eddie Soliai", npi: "1437503406" },
+    { name: "Kristi Zolman", npi: "1437503406" },
+    { name: "Jeffrey Ward", npi: "1023203460" },
+    { name: "Trung Le", npi: "1437503406" },
+    { name: "Siuling Kwan", npi: "1437503406" },
+    { name: "Samantha Choudhury", npi: "1437503406" },
+    { name: "Eldi Han", npi: "1437503406" }
+  ];
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
       {/* Header */}
@@ -730,16 +752,35 @@ export default function ClinicalHub() {
         
         {/* Left Sidebar: Patients List */}
         <aside className="w-full lg:w-80 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col">
-          <div className="p-4 border-b border-slate-100 bg-slate-50/50">
+          <div className="p-4 border-b border-slate-100 bg-slate-50/50 space-y-2">
             <h2 className="text-sm font-bold text-slate-600 uppercase tracking-wider flex items-center gap-2">
               <User className="h-4 w-4 text-emerald-500" /> Active Patients / Leads
             </h2>
+            <input
+              type="text"
+              placeholder="🔍 Search patient name, phone..."
+              value={sidebarSearch}
+              onChange={(e) => setSidebarSearch(e.target.value)}
+              className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500 placeholder-slate-400"
+            />
           </div>
           <div className="flex-1 overflow-y-auto max-h-[300px] lg:max-h-none divide-y divide-slate-100">
-            {leads.length === 0 ? (
-              <div className="p-6 text-center text-slate-400 text-sm">No patients found.</div>
-            ) : (
-              leads.map((p) => {
+            {(() => {
+              const filteredLeads = leads.filter((p) => {
+                const q = sidebarSearch.toLowerCase().trim();
+                if (!q) return true;
+                return (
+                  (p.name || "").toLowerCase().includes(q) ||
+                  (p.phone || "").toLowerCase().includes(q) ||
+                  (p.email || "").toLowerCase().includes(q)
+                );
+              });
+              
+              if (filteredLeads.length === 0) {
+                return <div className="p-6 text-center text-slate-400 text-sm">No patients found.</div>;
+              }
+              
+              return filteredLeads.map((p) => {
                 const isSelected = selectedLead?.id === p.id;
                 return (
                   <button
@@ -763,8 +804,8 @@ export default function ClinicalHub() {
                     <ChevronRight className={`h-4 w-4 text-slate-400 ${isSelected ? "text-emerald-600" : ""}`} />
                   </button>
                 );
-              })
-            )}
+              });
+            })()}
           </div>
         </aside>
 
@@ -991,6 +1032,23 @@ export default function ClinicalHub() {
                             onChange={(e) => setNewCarrier(e.target.value)}
                             className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
                           />
+                          <select
+                            onChange={(e) => {
+                              const ins = COMMON_INSURERS.find(x => x.name === e.target.value);
+                              if (ins) {
+                                setNewCarrier(ins.name);
+                                setNewClaimMailingAddress(ins.address);
+                                setNewAdjusterFax(ins.fax);
+                              }
+                            }}
+                            className="w-full mt-1.5 px-2 py-1 bg-slate-100 border border-slate-200 rounded-lg text-[10px] font-bold text-slate-700 focus:outline-none cursor-pointer"
+                            defaultValue=""
+                          >
+                            <option value="" disabled>-- Select Insurer --</option>
+                            {COMMON_INSURERS.map(ins => (
+                              <option key={ins.name} value={ins.name}>{ins.name}</option>
+                            ))}
+                          </select>
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold uppercase text-slate-400">Claim Number (Claim #)</label>
@@ -1091,6 +1149,18 @@ export default function ClinicalHub() {
                             onChange={(e) => setNewTreatingDoc(e.target.value)}
                             className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
                           />
+                          <div className="flex gap-1.5 mt-1.5">
+                            {["Choon Kia Yeo M.D.", "David Cai"].map(doc => (
+                              <button
+                                key={doc}
+                                type="button"
+                                onClick={() => setNewTreatingDoc(doc)}
+                                className="text-[9px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded transition"
+                              >
+                                {doc.split(" ")[0]}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold uppercase text-slate-400">Referring MD</label>
@@ -1101,6 +1171,22 @@ export default function ClinicalHub() {
                             onChange={(e) => setNewReferringDoc(e.target.value)}
                             className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
                           />
+                          <select
+                            onChange={(e) => {
+                              const selected = COMMON_REFERRING_MDS.find(x => x.name === e.target.value);
+                              if (selected) {
+                                setNewReferringDoc(selected.name);
+                                setNewReferringDocNpi(selected.npi);
+                              }
+                            }}
+                            className="w-full mt-1.5 px-2 py-1 bg-slate-100 border border-slate-200 rounded-lg text-[10px] font-bold text-slate-700 focus:outline-none cursor-pointer"
+                            defaultValue=""
+                          >
+                            <option value="" disabled>-- Select Doctor --</option>
+                            {COMMON_REFERRING_MDS.map(md => (
+                              <option key={md.name} value={md.name}>{md.name}</option>
+                            ))}
+                          </select>
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold uppercase text-slate-400">Referring NPI</label>
