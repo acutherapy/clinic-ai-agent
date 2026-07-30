@@ -106,6 +106,16 @@ export default function ClinicalHub() {
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [planHtml, setPlanHtml] = useState<string | null>(null);
   const [generatingPlan, setGeneratingPlan] = useState(false);
+
+  // RFS (VA Form 10-10172) States
+  const [showRfsModal, setShowRfsModal] = useState(false);
+  const [rfsAuthNum, setRfsAuthNum] = useState("");
+  const [rfsFacility, setRfsFacility] = useState("Sparks M Matsunaga Department of Veterans Affairs Medical Center");
+  const [rfsCptCodes, setRfsCptCodes] = useState("97813x1 & 97814x3");
+  const [rfsCptDesc, setRfsCptDesc] = useState("Acupuncture");
+  const [rfsReason, setRfsReason] = useState("");
+  const [generatingRfsReason, setGeneratingRfsReason] = useState(false);
+  const [rfsDate, setRfsDate] = useState("");
   const [planSessions, setPlanSessions] = useState(15);
   const [planDays, setPlanDays] = useState(120);
   const [planStartDate, setPlanStartDate] = useState("");
@@ -130,6 +140,60 @@ export default function ClinicalHub() {
     setPlanPreparedBy(selectedCase.treating_doctor || "DAVID CAI");
     setPlanHtml(null);
     setShowPlanModal(true);
+  }
+
+  function handleOpenRfsModal() {
+    if (!selectedLead) return;
+    setRfsAuthNum(selectedCase?.claim_number || "");
+    setRfsFacility("Sparks M Matsunaga Department of Veterans Affairs Medical Center");
+    
+    const isMassage = selectedCase?.treatment_frequency?.toLowerCase().includes("massage") || 
+                      selectedCase?.insurance_carrier?.toLowerCase().includes("massage") || false;
+    
+    if (isMassage) {
+      setRfsCptCodes("97124x4");
+      setRfsCptDesc("Medical Massage");
+    } else {
+      setRfsCptCodes("97813x1 & 97814x3");
+      setRfsCptDesc("Acupuncture");
+    }
+    
+    const today = new Date().toLocaleDateString("en-US", {
+      month: "2-digit",
+      day: "2-digit",
+      year: "numeric"
+    });
+    setRfsDate(today);
+    setRfsReason("");
+    setShowRfsModal(true);
+  }
+
+  async function handleGenerateRfsReason() {
+    if (!selectedLead) return;
+    setGeneratingRfsReason(true);
+    try {
+      const icdCode = selectedCase?.active_icd_codes?.[0] || "M54.5";
+      const res = await fetch("/api/generate-rfs-reason", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patientId: selectedLead.id,
+          caseId: selectedCase?.id,
+          diagnosis: icdCode,
+          cptCodes: rfsCptCodes
+        })
+      });
+      const data = await res.json();
+      if (data.reason) {
+        setRfsReason(data.reason);
+      } else {
+        alert("Failed to generate reason: " + (data.error || "Unknown error"));
+      }
+    } catch (err: any) {
+      alert("Error generating reason: " + err.message);
+    } finally {
+      setGeneratingRfsReason(false);
+    }
   }
 
   async function handleGenerateTreatmentPlan() {
@@ -1577,14 +1641,24 @@ export default function ClinicalHub() {
                   {/* Generate Button */}
                   <div className="flex flex-col sm:flex-row justify-end gap-3 pt-2">
                     {selectedCase && (
-                      <button
-                        type="button"
-                        onClick={handleOpenTreatmentPlanModal}
-                        className="bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-extrabold text-sm px-6 py-3 rounded-2xl transition-all duration-300 shadow-sm flex items-center justify-center gap-2"
-                      >
-                        <FileText className="h-4.5 w-4.5 text-emerald-600" />
-                        Generate Treatment Plan Report 📋
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={handleOpenRfsModal}
+                          className="bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-extrabold text-sm px-6 py-3 rounded-2xl transition-all duration-300 shadow-sm flex items-center justify-center gap-2"
+                        >
+                          <FileText className="h-4.5 w-4.5 text-blue-600" />
+                          Generate VA RFS Form 📄
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleOpenTreatmentPlanModal}
+                          className="bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-extrabold text-sm px-6 py-3 rounded-2xl transition-all duration-300 shadow-sm flex items-center justify-center gap-2"
+                        >
+                          <FileText className="h-4.5 w-4.5 text-emerald-600" />
+                          Generate Treatment Plan Report 📋
+                        </button>
+                      </>
                     )}
                     <button
                       onClick={() => handleGenerateSOAP("acupuncture")}
@@ -2005,6 +2079,155 @@ export default function ClinicalHub() {
                   </div>
                 </div>
               )}
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* VA FORM 10-10172 RFS BUILDER MODAL */}
+      {showRfsModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-slate-200/80 shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200 font-sans">
+            
+            {/* Header */}
+            <div className="bg-slate-900 text-white p-5 flex justify-between items-center shrink-0">
+              <div>
+                <h3 className="font-extrabold text-base flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-blue-400" /> VA Request for Service (Form 10-10172) Scribe
+                </h3>
+                <p className="text-[10px] text-slate-300 mt-1">
+                  Draft clinical authorizations for Veteran patient care to print or save as PDF.
+                </p>
+              </div>
+              <button 
+                onClick={() => setShowRfsModal(false)}
+                className="p-1.5 hover:bg-slate-800 rounded-full transition-all text-slate-400 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Body Form */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">VA Authorization Number</label>
+                  <input
+                    type="text"
+                    value={rfsAuthNum}
+                    onChange={(e) => setRfsAuthNum(e.target.value)}
+                    placeholder="e.g. VA0055258719"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Today's Date</label>
+                  <input
+                    type="text"
+                    value={rfsDate}
+                    onChange={(e) => setRfsDate(e.target.value)}
+                    placeholder="MM/DD/YYYY"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase text-slate-400">VA Facility & Address</label>
+                <input
+                  type="text"
+                  value={rfsFacility}
+                  onChange={(e) => setRfsFacility(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Requested CPT Codes</label>
+                  <input
+                    type="text"
+                    value={rfsCptCodes}
+                    onChange={(e) => setRfsCptCodes(e.target.value)}
+                    placeholder="e.g. 97813x1 & 97814x3"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                  <div className="flex gap-1.5 mt-1">
+                    {["97813x1 & 97814x3", "97124x4", "97813x1"].map(c => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => {
+                          setRfsCptCodes(c);
+                          setRfsCptDesc(c.includes("97124") ? "Medical Massage" : "Acupuncture");
+                        }}
+                        className="text-[9px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded"
+                      >
+                        {c}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">CPT Description</label>
+                  <input
+                    type="text"
+                    value={rfsCptDesc}
+                    onChange={(e) => setRfsCptDesc(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">18. Reason for Request (Clinical Justification)</label>
+                  <button
+                    type="button"
+                    onClick={handleGenerateRfsReason}
+                    disabled={generatingRfsReason}
+                    className="text-[10px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 disabled:opacity-50"
+                  >
+                    {generatingRfsReason ? (
+                      <>
+                        <RefreshCw className="h-3 w-3 animate-spin" /> Generating...
+                      </>
+                    ) : (
+                      <>
+                        ✨ Auto-Generate with AI
+                      </>
+                    )}
+                  </button>
+                </div>
+                <textarea
+                  value={rfsReason}
+                  onChange={(e) => setRfsReason(e.target.value)}
+                  placeholder="Requesting additional visits to address persistent neck and back pain..."
+                  className="w-full h-32 bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white resize-none"
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-end gap-3 p-5 border-t border-slate-100 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowRfsModal(false)}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-700 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  window.open(`/rfs-print?patientId=${selectedLead.id}&caseId=${selectedCase?.id || ""}&authNum=${encodeURIComponent(rfsAuthNum)}&facility=${encodeURIComponent(rfsFacility)}&cptCodes=${encodeURIComponent(rfsCptCodes)}&cptDesc=${encodeURIComponent(rfsCptDesc)}&reason=${encodeURIComponent(rfsReason)}&date=${encodeURIComponent(rfsDate)}`, '_blank');
+                  setShowRfsModal(false);
+                }}
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-blue-600/10"
+              >
+                Open Print Template 🖨️
+              </button>
             </div>
 
           </div>
