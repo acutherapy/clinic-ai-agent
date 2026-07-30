@@ -196,6 +196,57 @@ export default function ClinicalHub() {
     }
   }
 
+  async function handlePrintRfs() {
+    if (!selectedLead) return;
+    
+    // Open a blank window immediately to bypass popup blockers
+    const printWindow = window.open("", "_blank");
+    if (printWindow) {
+      printWindow.document.write("<html><body><p style='font-family:sans-serif;font-size:14px;color:#64748b;text-align:center;margin-top:100px;'>Generating official VA Form 10-10172 PDF. Please wait...</p></body></html>");
+    }
+    
+    try {
+      const icdCode = selectedCase?.active_icd_codes?.[0] || "M25.512";
+      const icdDesc = icdCode.replace(/\./g, "").startsWith("M25512")
+        ? "Chronic Joint Pain"
+        : icdCode.replace(/\./g, "").startsWith("M545")
+        ? "Lower back pain"
+        : icdCode.replace(/\./g, "").startsWith("M542")
+        ? "Cervicalgia"
+        : "Chronic Pain";
+        
+      const res = await fetch("/api/print-rfs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patientName: selectedLead.name,
+          dob: selectedLead.dob ? new Date(selectedLead.dob).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" }) : "",
+          authNum: rfsAuthNum,
+          facility: rfsFacility,
+          cptCodes: rfsCptCodes,
+          cptDesc: rfsCptDesc,
+          reason: rfsReason,
+          date: rfsDate,
+          icdCode: icdCode,
+          icdDesc: icdDesc
+        })
+      });
+      
+      if (!res.ok) throw new Error("Failed to generate PDF form.");
+      
+      const blob = await res.blob();
+      const fileUrl = URL.createObjectURL(blob);
+      
+      if (printWindow) {
+        printWindow.location.href = fileUrl;
+      }
+      setShowRfsModal(false);
+    } catch (err: any) {
+      if (printWindow) printWindow.close();
+      alert("Error generating printable RFS PDF: " + err.message);
+    }
+  }
+
   async function handleGenerateTreatmentPlan() {
     if (!selectedLead || !selectedCase) return;
     setGeneratingPlan(true);
@@ -2220,10 +2271,7 @@ export default function ClinicalHub() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  window.open(`/rfs-print?patientId=${selectedLead.id}&caseId=${selectedCase?.id || ""}&authNum=${encodeURIComponent(rfsAuthNum)}&facility=${encodeURIComponent(rfsFacility)}&cptCodes=${encodeURIComponent(rfsCptCodes)}&cptDesc=${encodeURIComponent(rfsCptDesc)}&reason=${encodeURIComponent(rfsReason)}&date=${encodeURIComponent(rfsDate)}`, '_blank');
-                  setShowRfsModal(false);
-                }}
+                onClick={handlePrintRfs}
                 className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-blue-600/10"
               >
                 Open Print Template 🖨️
