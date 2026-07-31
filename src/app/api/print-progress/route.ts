@@ -33,6 +33,7 @@ export async function POST(req: Request) {
     const pdfBytes = fs.readFileSync(templatePath);
     const pdfDoc = await PDFDocument.load(pdfBytes);
     const page = pdfDoc.getPages()[0];
+    const height = page.getHeight(); // Get dynamic height to support Letter/A4 layouts
 
     const helvetica = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const helveticaNormal = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -66,35 +67,52 @@ export async function POST(req: Request) {
       });
     };
 
-    // 1. Compress top clinic info and title (Cover and redraw shifted up to gain whitespace balance)
+    // 1. Compress top clinic info and title (Cover completely up to dynamic page top to prevent duplication)
     page.drawRectangle({
       x: 0,
-      y: 720,
+      y: 715,
       width: 612,
-      height: 72,
+      height: height - 715,
       color: rgb(1, 1, 1)
     });
 
-    // Centered coordinates for 612 width page:
-    drawText("ACUTHERAPY CLINICS", 216, 775, 14, helvetica);
+    // Centered coordinates relative to dynamic height:
+    drawText("ACUTHERAPY CLINICS", 216, height - 26, 14, helvetica);
     
     // Address & Contact Info (Centered)
     page.drawText("1650 LILIHA ST SUITE 208, HONOLULU, HI 96817  |  TEL: (808) 528-7177  FAX: (808) 212-9459", {
       x: 101,
-      y: 762,
+      y: height - 39,
       size: 8,
       font: helveticaNormal,
       color: rgb(0, 0, 0)
     });
     
     // Title (Centered & shifted up)
-    drawText("TREATMENT PROGRESS REPORT AND PLAN OF CARE", 131, 742, 12.5, helvetica);
+    drawText("TREATMENT PROGRESS REPORT AND PLAN OF CARE", 131, height - 59, 12.5, helvetica);
 
-    // 2. Fill Header Fields (Perfect alignment with labels' baselines, shifted right for spacing)
-    if (patientName) drawText(patientName, 135, 702.33, 8.5);
-    if (dob) drawText(dob, 365, 701.12, 8.5);
-    if (authNum) drawText(authNum, 165, 685.51, 8.5);
-    if (diagnosis) drawText(diagnosis, 365, 684.24, 8.5);
+    // 2. Patient Info Section - Completely BORDERLESS (Erase old table borders & redraw labels and values)
+    page.drawRectangle({
+      x: 42,
+      y: 672,
+      width: 528,
+      height: 44,
+      color: rgb(1, 1, 1)
+    });
+
+    // Row 1
+    page.drawText("PATIENT'S NAME:", { x: 45, y: 701, size: 9, font: helvetica, color: rgb(0, 0, 0) });
+    if (patientName) page.drawText(patientName.toUpperCase(), { x: 135, y: 701, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
+    
+    page.drawText("DATE BIRTH:", { x: 350, y: 701, size: 9, font: helvetica, color: rgb(0, 0, 0) });
+    if (dob) page.drawText(dob.toUpperCase(), { x: 418, y: 701, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
+
+    // Row 2
+    page.drawText("AUTHORIZATION NUMBER:", { x: 45, y: 683, size: 9, font: helvetica, color: rgb(0, 0, 0) });
+    if (authNum) page.drawText(authNum.toUpperCase(), { x: 180, y: 683, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
+
+    page.drawText("DIAGNOSIS:", { x: 350, y: 683, size: 9, font: helvetica, color: rgb(0, 0, 0) });
+    if (diagnosis) page.drawText(diagnosis.toUpperCase(), { x: 412, y: 683, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
 
     // 3. Therapy Received Summary Sentence (Redrawn completely for clean custom spacing)
     page.drawRectangle({
@@ -167,6 +185,12 @@ export async function POST(req: Request) {
     else if (intensityImp === "poor") drawCheck(382.88, 546.00);
 
     // 6. Pain Level Scale (1-10)
+    // Redraw Table Headers (SCALE, INITIAL, CURRENT) in Helvetica font
+    page.drawRectangle({ x: 44, y: 455, width: 62, height: 50, color: rgb(1, 1, 1) });
+    page.drawText("SCALE", { x: 48, y: 493, size: 9, font: helvetica, color: rgb(0, 0, 0) });
+    page.drawText("INITIAL", { x: 48, y: 477, size: 9, font: helvetica, color: rgb(0, 0, 0) });
+    page.drawText("CURRENT", { x: 48, y: 461, size: 9, font: helvetica, color: rgb(0, 0, 0) });
+
     // Initial row y: 479.50 (lowered to prevent cell line collisions)
     const initialPainXMap: Record<number, number> = {
       1: 113.64, 2: 153.39, 3: 199.89, 4: 246.39, 5: 292.89,
@@ -226,12 +250,37 @@ export async function POST(req: Request) {
       drawText(frequency, 305, 331.20, 9, helveticaNormal);
     }
 
-    // 11. Fix the template PDF layout bug: Cover and redraw only the word "Goals" slightly higher
-    page.drawRectangle({ x: 45, y: 260, width: 120, height: 11, color: rgb(1, 1, 1) });
-    page.drawRectangle({ x: 300, y: 260, width: 120, height: 11, color: rgb(1, 1, 1) });
+    // 11. Goals Section - Clean Borderless Layout (Erase old table borders & redraw Goals lists in clean style)
+    page.drawRectangle({
+      x: 43,
+      y: 75,
+      width: 528,
+      height: 220,
+      color: rgb(1, 1, 1)
+    });
+
+    // Short Term Goals
+    page.drawText("SHORT TERM OBJECTIVE GOALS & TIME FRAME", { x: 45, y: 280, size: 9.5, font: helvetica, color: rgb(0, 0, 0) });
     
-    drawText("GOALS", 47.70, 269, 8, helvetica);
-    drawText("GOALS", 302.70, 269, 8, helvetica);
+    page.drawRectangle({ x: 45, y: 258, width: 9, height: 9, borderWidth: 1.5, borderColor: rgb(0, 0, 0) });
+    drawCheck(45, 258);
+    page.drawText("Goal: Minimize intensity and frequency of pain".toUpperCase(), { x: 60, y: 259, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
+    
+    page.drawRectangle({ x: 45, y: 240, width: 9, height: 9, borderWidth: 1.5, borderColor: rgb(0, 0, 0) });
+    drawCheck(45, 240);
+    page.drawText("Time Frame: 3 Months to 6 months".toUpperCase(), { x: 60, y: 241, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
+
+    // Long Term Goals
+    page.drawText("LONG TERM OBJECTIVE GOALS & TIME FRAME", { x: 45, y: 205, size: 9.5, font: helvetica, color: rgb(0, 0, 0) });
+    
+    page.drawRectangle({ x: 45, y: 183, width: 9, height: 9, borderWidth: 1.5, borderColor: rgb(0, 0, 0) });
+    drawCheck(45, 183);
+    page.drawText("Goal: Improve functions in daily living and work activities, so patients can".toUpperCase(), { x: 60, y: 184, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
+    page.drawText("maintain a productive lifestyle.".toUpperCase(), { x: 60, y: 170, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
+    
+    page.drawRectangle({ x: 45, y: 148, width: 9, height: 9, borderWidth: 1.5, borderColor: rgb(0, 0, 0) });
+    drawCheck(45, 148);
+    page.drawText("Time Frame: Over a year".toUpperCase(), { x: 60, y: 149, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
 
     // Today's Date bottom right next to signature
     if (date) {
