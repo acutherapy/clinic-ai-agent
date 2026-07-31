@@ -67,54 +67,54 @@ export async function POST(req: Request) {
       });
     };
 
-    // 1. Compress top clinic info and title (Cover completely up to dynamic page top to prevent duplication)
+    // 1. Compress top clinic info and title (Cover and redraw shifted down 2 lines for printable margins)
     page.drawRectangle({
       x: 0,
-      y: 715,
+      y: 695,
       width: 612,
-      height: height - 715,
+      height: height - 695,
       color: rgb(1, 1, 1)
     });
 
-    // Centered coordinates relative to dynamic height:
-    drawText("ACUTHERAPY CLINICS", 216, height - 26, 14, helvetica);
+    // Centered coordinates shifted down 2 lines:
+    drawText("ACUTHERAPY CLINICS", 216, height - 46, 14, helvetica);
     
     // Address & Contact Info (Centered)
     page.drawText("1650 LILIHA ST SUITE 208, HONOLULU, HI 96817  |  TEL: (808) 528-7177  FAX: (808) 212-9459", {
       x: 101,
-      y: height - 39,
+      y: height - 59,
       size: 8,
       font: helveticaNormal,
       color: rgb(0, 0, 0)
     });
     
-    // Title (Centered & shifted up)
-    drawText("TREATMENT PROGRESS REPORT AND PLAN OF CARE", 131, height - 59, 12.5, helvetica);
+    // Title (Centered)
+    drawText("TREATMENT PROGRESS REPORT AND PLAN OF CARE", 131, height - 79, 12.5, helvetica);
 
-    // 2. Patient Info Section - Completely BORDERLESS (Erase old table borders & brackets by covering from x: 35)
+    // 2. Patient Info Section - Completely BORDERLESS (Align values column-wise to x: 175 and x: 420)
     page.drawRectangle({
       x: 35,
-      y: 670,
+      y: 668,
       width: 540,
-      height: 48,
+      height: 50,
       color: rgb(1, 1, 1)
     });
 
     // Row 1 (Aligned with left margin x: 45)
     page.drawText("PATIENT'S NAME:", { x: 45, y: 701, size: 9, font: helvetica, color: rgb(0, 0, 0) });
-    if (patientName) page.drawText(patientName.toUpperCase(), { x: 135, y: 701, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
+    if (patientName) page.drawText(patientName.toUpperCase(), { x: 175, y: 701, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
     
     page.drawText("DATE BIRTH:", { x: 350, y: 701, size: 9, font: helvetica, color: rgb(0, 0, 0) });
-    if (dob) page.drawText(dob.toUpperCase(), { x: 418, y: 701, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
+    if (dob) page.drawText(dob.toUpperCase(), { x: 420, y: 701, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
 
     // Row 2 (Aligned with left margin x: 45)
     page.drawText("AUTHORIZATION NUMBER:", { x: 45, y: 683, size: 9, font: helvetica, color: rgb(0, 0, 0) });
-    if (authNum) page.drawText(authNum.toUpperCase(), { x: 180, y: 683, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
+    if (authNum) page.drawText(authNum.toUpperCase(), { x: 175, y: 683, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
 
     page.drawText("DIAGNOSIS:", { x: 350, y: 683, size: 9, font: helvetica, color: rgb(0, 0, 0) });
-    if (diagnosis) page.drawText(diagnosis.toUpperCase(), { x: 412, y: 683, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
+    if (diagnosis) page.drawText(diagnosis.toUpperCase(), { x: 420, y: 683, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
 
-    // 3. Therapy Received Summary Sentence (Redrawn completely for clean custom spacing)
+    // 3. Therapy Received Summary Sentence (Redrawn completely in unified case to match template)
     page.drawRectangle({
       x: 118,
       y: 656,
@@ -123,44 +123,69 @@ export async function POST(req: Request) {
       color: rgb(1, 1, 1)
     });
     
-    page.drawText("received".toUpperCase(), {
+    page.drawText("received", {
       x: 120,
       y: 659.90,
-      size: 9,
+      size: 9.5,
       font: helveticaNormal,
       color: rgb(0, 0, 0)
     });
     
     if (numTreatments) {
-      drawText(String(numTreatments), 168, 659.90, 9.5);
+      page.drawText(String(numTreatments), {
+        x: 164,
+        y: 659.90,
+        size: 9.5,
+        font: helvetica,
+        color: rgb(0, 0, 0)
+      });
     }
     
     const isAcupuncture = therapyType === "acupuncture";
-    if (isAcupuncture) {
-      drawText("acupuncture", 185, 659.90, 9.5);
-    } else {
-      drawText("medical massage", 185, 659.90, 9.5);
+    const therapyText = isAcupuncture ? "acupuncture" : "medical massage";
+    page.drawText(therapyText, {
+      x: 182,
+      y: 659.90,
+      size: 9.5,
+      font: helvetica,
+      color: rgb(0, 0, 0)
+    });
+
+    page.drawText("treatments from", {
+      x: 268,
+      y: 659.90,
+      size: 9.5,
+      font: helveticaNormal,
+      color: rgb(0, 0, 0)
+    });
+
+    if (startDate) {
+      page.drawText(startDate, {
+        x: 352,
+        y: 659.90,
+        size: 9.5,
+        font: helvetica,
+        color: rgb(0, 0, 0)
+      });
     }
-
-    page.drawText("treatments from".toUpperCase(), {
-      x: 270,
-      y: 659.90,
-      size: 9,
-      font: helveticaNormal,
-      color: rgb(0, 0, 0)
-    });
-
-    if (startDate) drawText(startDate, 362, 659.90, 9.5);
     
-    page.drawText("to".toUpperCase(), {
-      x: 422,
+    page.drawText("to", {
+      x: 412,
       y: 659.90,
-      size: 9,
+      size: 9.5,
       font: helveticaNormal,
       color: rgb(0, 0, 0)
     });
 
-    if (endDate) drawText(endDate, 442, 659.90, 9.5);
+    if (endDate) {
+      page.drawText(endDate, {
+        x: 428,
+        y: 659.90,
+        size: 9.5,
+        font: helvetica,
+        color: rgb(0, 0, 0)
+      });
+    }
 
     // 4. Subjective Checklist
     // - "improvement": x: 117.62, y: 634.44
@@ -186,8 +211,8 @@ export async function POST(req: Request) {
 
     // 6. Pain Level Scale (1-10)
     // Redraw Table Headers (SCALE, INITIAL, CURRENT) in Helvetica font.
-    // Start cover at x: 38 to completely wipe out the left vertical line of the table.
-    page.drawRectangle({ x: 38, y: 455, width: 68, height: 50, color: rgb(1, 1, 1) });
+    // Start cover at x: 38 and increase height to 54 to completely wipe out the top horizontal line.
+    page.drawRectangle({ x: 38, y: 455, width: 68, height: 54, color: rgb(1, 1, 1) });
     
     // Reduce font size to 7.5 to fit in row boxes perfectly and align them vertically.
     page.drawText("SCALE", { x: 45, y: 494.5, size: 7.5, font: helvetica, color: rgb(0, 0, 0) });
@@ -286,6 +311,17 @@ export async function POST(req: Request) {
     drawCheck(45, 148);
     page.drawText("Time Frame: Over a year".toUpperCase(), { x: 60, y: 149, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
 
+    // 12. Signature and Footer Section - Left Aligned to x: 45 to match template
+    page.drawRectangle({
+      x: 35,
+      y: 25,
+      width: 300,
+      height: 60,
+      color: rgb(1, 1, 1)
+    });
+    page.drawText("Dr. David Cai L. Ac., L.M.T.", { x: 45, y: 65, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
+    page.drawText("AcuTherapy Clinics", { x: 45, y: 48, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
+
     // Today's Date bottom right next to signature
     if (date) {
       drawText(date, 440, 90.58, 10);
@@ -298,7 +334,7 @@ export async function POST(req: Request) {
       drawText(today, 440, 90.58, 10);
     }
 
-    // 12. Save PDF
+    // 13. Save PDF
     const outputBytes = await pdfDoc.save();
 
     return new Response(Buffer.from(outputBytes), {
