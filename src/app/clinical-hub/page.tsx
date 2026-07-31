@@ -116,6 +116,22 @@ export default function ClinicalHub() {
   const [rfsReason, setRfsReason] = useState("");
   const [generatingRfsReason, setGeneratingRfsReason] = useState(false);
   const [rfsDate, setRfsDate] = useState("");
+
+  // Progress Report States
+  const [showProgressModal, setShowProgressModal] = useState(false);
+  const [progressAuthNum, setProgressAuthNum] = useState("");
+  const [progressNumTreatments, setProgressNumTreatments] = useState(14);
+  const [progressStartDate, setProgressStartDate] = useState("");
+  const [progressEndDate, setProgressEndDate] = useState("");
+  const [progressSubjective, setProgressSubjective] = useState("improvement");
+  const [progressIntensityImp, setProgressIntensityImp] = useState("fair");
+  const [progressInitialPain, setProgressInitialPain] = useState(7);
+  const [progressCurrentPain, setProgressCurrentPain] = useState(6);
+  const [progressEnduranceFunc, setProgressEnduranceFunc] = useState("improved");
+  const [progressTherapyType, setProgressTherapyType] = useState("acupuncture");
+  const [progressRecommendation, setProgressRecommendation] = useState("acupuncture");
+  const [progressFrequency, setProgressFrequency] = useState("2-3 times per week for 8 weeks then re-evaluation.");
+  const [progressDate, setProgressDate] = useState("");
   const [planSessions, setPlanSessions] = useState(15);
   const [planDays, setPlanDays] = useState(120);
   const [planStartDate, setPlanStartDate] = useState("");
@@ -245,6 +261,114 @@ export default function ClinicalHub() {
     } catch (err: any) {
       if (printWindow) printWindow.close();
       alert("Error generating printable RFS PDF: " + err.message);
+    }
+  }
+
+  function handleOpenProgressModal() {
+    if (!selectedLead) return;
+    
+    setProgressAuthNum(selectedCase?.claim_number || "");
+    
+    // Default dates
+    const today = new Date().toLocaleDateString("en-US", {
+      month: "2-digit",
+      day: "2-digit",
+      year: "numeric"
+    });
+    setProgressEndDate(today);
+    setProgressDate(today);
+    
+    // Set start date from active case if present, or 4 weeks ago
+    if (selectedCase?.start_date) {
+      setProgressStartDate(new Date(selectedCase.start_date).toLocaleDateString("en-US", {
+        month: "2-digit",
+        day: "2-digit",
+        year: "numeric"
+      }));
+    } else {
+      const fourWeeksAgo = new Date();
+      fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 30);
+      setProgressStartDate(fourWeeksAgo.toLocaleDateString("en-US", {
+        month: "2-digit",
+        day: "2-digit",
+        year: "numeric"
+      }));
+    }
+    
+    // Default therapy type from active case
+    const isMassage = selectedCase?.treatment_frequency?.toLowerCase().includes("massage") || 
+                      selectedCase?.insurance_carrier?.toLowerCase().includes("massage") || false;
+                      
+    const defaultType = isMassage ? "massage" : "acupuncture";
+    setProgressTherapyType(defaultType);
+    setProgressRecommendation(defaultType);
+    
+    // Reset pain levels
+    setProgressInitialPain(7);
+    setProgressCurrentPain(6);
+    setProgressNumTreatments(14);
+    setProgressSubjective("improvement");
+    setProgressIntensityImp("fair");
+    setProgressEnduranceFunc("improved");
+    setProgressFrequency("2-3 times per week for 8 weeks then re-evaluation.");
+    
+    setShowProgressModal(true);
+  }
+
+  async function handlePrintProgress() {
+    if (!selectedLead) return;
+    
+    // Open a blank window immediately to bypass popup blockers
+    const printWindow = window.open("", "_blank");
+    if (printWindow) {
+      printWindow.document.write("<html><body><p style='font-family:sans-serif;font-size:14px;color:#64748b;text-align:center;margin-top:100px;'>Generating official Treatment Progress Report PDF. Please wait...</p></body></html>");
+    }
+    
+    try {
+      const icdCode = selectedCase?.active_icd_codes?.[0] || "M25.512";
+      const icdDesc = icdCode.replace(/\./g, "").startsWith("M25512")
+        ? "Chronic Joint Pain"
+        : icdCode.replace(/\./g, "").startsWith("M545")
+        ? "Lower back pain"
+        : icdCode.replace(/\./g, "").startsWith("M542")
+        ? "Cervicalgia"
+        : "Chronic Pain";
+        
+      const res = await fetch("/api/print-progress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patientName: selectedLead.name,
+          dob: selectedLead.dob ? new Date(selectedLead.dob).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" }) : "",
+          authNum: progressAuthNum,
+          diagnosis: icdCode + " " + icdDesc,
+          numTreatments: progressNumTreatments,
+          therapyType: progressTherapyType,
+          startDate: progressStartDate,
+          endDate: progressEndDate,
+          subjective: progressSubjective,
+          intensityImp: progressIntensityImp,
+          initialPain: progressInitialPain,
+          currentPain: progressCurrentPain,
+          enduranceFunc: progressEnduranceFunc,
+          recommendation: progressRecommendation,
+          frequency: progressFrequency,
+          date: progressDate
+        })
+      });
+      
+      if (!res.ok) throw new Error("Failed to generate progress report PDF.");
+      
+      const blob = await res.blob();
+      const fileUrl = URL.createObjectURL(blob);
+      
+      if (printWindow) {
+        printWindow.location.href = fileUrl;
+      }
+      setShowProgressModal(false);
+    } catch (err: any) {
+      if (printWindow) printWindow.close();
+      alert("Error generating printable progress report PDF: " + err.message);
     }
   }
 
@@ -1696,6 +1820,14 @@ export default function ClinicalHub() {
                       <>
                         <button
                           type="button"
+                          onClick={handleOpenProgressModal}
+                          className="bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-extrabold text-sm px-6 py-3 rounded-2xl transition-all duration-300 shadow-sm flex items-center justify-center gap-2"
+                        >
+                          <FileText className="h-4.5 w-4.5 text-purple-600" />
+                          Generate Progress Report 📈
+                        </button>
+                        <button
+                          type="button"
                           onClick={handleOpenRfsModal}
                           className="bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-extrabold text-sm px-6 py-3 rounded-2xl transition-all duration-300 shadow-sm flex items-center justify-center gap-2"
                         >
@@ -2291,6 +2423,239 @@ export default function ClinicalHub() {
                 type="button"
                 onClick={handlePrintRfs}
                 className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-blue-600/10"
+              >
+                Open Print Template 🖨️
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* TREATMENT PROGRESS REPORT BUILDER MODAL */}
+      {showProgressModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-slate-200/80 shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200 font-sans">
+            
+            {/* Header */}
+            <div className="bg-slate-900 text-white p-5 flex justify-between items-center shrink-0">
+              <div>
+                <h3 className="font-extrabold text-base flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-purple-400" /> Treatment Progress Report Scribe
+                </h3>
+                <p className="text-[10px] text-slate-300 mt-1">
+                  Generate medical progress reports and care plans to overlay on official templates.
+                </p>
+              </div>
+              <button 
+                onClick={() => setShowProgressModal(false)}
+                className="p-1.5 hover:bg-slate-800 rounded-full transition-all text-slate-400 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Body Form */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Previous Authorization Number</label>
+                  <input
+                    type="text"
+                    value={progressAuthNum}
+                    onChange={(e) => setProgressAuthNum(e.target.value)}
+                    placeholder="e.g. VA0056048841"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Today's Date</label>
+                  <input
+                    type="text"
+                    value={progressDate}
+                    onChange={(e) => setProgressDate(e.target.value)}
+                    placeholder="MM/DD/YYYY"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                </div>
+              </div>
+
+              {/* Treatment Summary row */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 grid grid-cols-12 gap-3 items-center">
+                <div className="col-span-12 text-[10px] font-extrabold uppercase text-slate-500 mb-1">Received Therapy Summary</div>
+                
+                <div className="col-span-3 space-y-1">
+                  <label className="text-[9px] font-bold uppercase text-slate-400">Visits Count</label>
+                  <input
+                    type="number"
+                    value={progressNumTreatments}
+                    onChange={(e) => setProgressNumTreatments(parseInt(e.target.value) || 0)}
+                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                </div>
+
+                <div className="col-span-3 space-y-1">
+                  <label className="text-[9px] font-bold uppercase text-slate-400">Therapy Received</label>
+                  <select
+                    value={progressTherapyType}
+                    onChange={(e) => setProgressTherapyType(e.target.value)}
+                    className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  >
+                    <option value="acupuncture">Acupuncture</option>
+                    <option value="massage">Medical Massage</option>
+                  </select>
+                </div>
+
+                <div className="col-span-3 space-y-1">
+                  <label className="text-[9px] font-bold uppercase text-slate-400">Start Date</label>
+                  <input
+                    type="text"
+                    value={progressStartDate}
+                    onChange={(e) => setProgressStartDate(e.target.value)}
+                    placeholder="MM/DD/YYYY"
+                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                </div>
+
+                <div className="col-span-3 space-y-1">
+                  <label className="text-[9px] font-bold uppercase text-slate-400">End Date</label>
+                  <input
+                    type="text"
+                    value={progressEndDate}
+                    onChange={(e) => setProgressEndDate(e.target.value)}
+                    placeholder="MM/DD/YYYY"
+                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                </div>
+              </div>
+
+              {/* Subjective, Intensity, Endurance Checklists */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Subjective State</label>
+                  <select
+                    value={progressSubjective}
+                    onChange={(e) => setProgressSubjective(e.target.value)}
+                    className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  >
+                    <option value="improvement">Improvement</option>
+                    <option value="no_change">No Change</option>
+                    <option value="worsening">Worsening</option>
+                    <option value="flare_up">Flare Up</option>
+                    <option value="exacerbates">Exacerbates in intensity</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Intensity / ADL Improvement</label>
+                  <select
+                    value={progressIntensityImp}
+                    onChange={(e) => setProgressIntensityImp(e.target.value)}
+                    className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  >
+                    <option value="excellent">Excellent (75-100%)</option>
+                    <option value="good">Good (50-74%)</option>
+                    <option value="fair">Fair (25-49%)</option>
+                    <option value="poor">Poor (0-24%)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Endurance & Function</label>
+                  <select
+                    value={progressEnduranceFunc}
+                    onChange={(e) => setProgressEnduranceFunc(e.target.value)}
+                    className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  >
+                    <option value="improved">Improved</option>
+                    <option value="no_change">No Change</option>
+                    <option value="impaired">Impaired</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Pain Levels */}
+              <div className="grid grid-cols-2 gap-4 bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Initial Pain Scale (1-10)</label>
+                  <div className="flex justify-between gap-1">
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(val => (
+                      <button
+                        key={`init-${val}`}
+                        type="button"
+                        onClick={() => setProgressInitialPain(val)}
+                        className={`w-7 h-7 rounded-lg text-xs font-bold border transition ${
+                          progressInitialPain === val
+                            ? "bg-slate-900 text-white border-slate-900"
+                            : "bg-white border-slate-200 text-slate-700 hover:bg-slate-100"
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Current Pain Scale (1-10)</label>
+                  <div className="flex justify-between gap-1">
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(val => (
+                      <button
+                        key={`curr-${val}`}
+                        type="button"
+                        onClick={() => setProgressCurrentPain(val)}
+                        className={`w-7 h-7 rounded-lg text-xs font-bold border transition ${
+                          progressCurrentPain === val
+                            ? "bg-slate-900 text-white border-slate-900"
+                            : "bg-white border-slate-200 text-slate-700 hover:bg-slate-100"
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Recommendation & Custom Frequency */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Recommendation</label>
+                  <select
+                    value={progressRecommendation}
+                    onChange={(e) => setProgressRecommendation(e.target.value)}
+                    className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  >
+                    <option value="acupuncture">Acupuncture</option>
+                    <option value="massage">Medical Massage</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase text-slate-400">Recommended Frequency</label>
+                  <input
+                    type="text"
+                    value={progressFrequency}
+                    onChange={(e) => setProgressFrequency(e.target.value)}
+                    placeholder="2-3 times per week for 8 weeks..."
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex justify-end gap-3 p-5 border-t border-slate-100 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowProgressModal(false)}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-bold text-slate-700 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handlePrintProgress}
+                className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-purple-600/10"
               >
                 Open Print Template 🖨️
               </button>
