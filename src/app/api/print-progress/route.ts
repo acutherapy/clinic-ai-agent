@@ -91,23 +91,23 @@ export async function POST(req: Request) {
     // Title (Centered & shifted up)
     drawText("TREATMENT PROGRESS REPORT AND PLAN OF CARE", 131, height - 59, 12.5, helvetica);
 
-    // 2. Patient Info Section - Completely BORDERLESS (Erase old table borders & redraw labels and values)
+    // 2. Patient Info Section - Completely BORDERLESS (Erase old table borders & brackets by covering from x: 35)
     page.drawRectangle({
-      x: 42,
-      y: 672,
-      width: 528,
-      height: 44,
+      x: 35,
+      y: 670,
+      width: 540,
+      height: 48,
       color: rgb(1, 1, 1)
     });
 
-    // Row 1
+    // Row 1 (Aligned with left margin x: 45)
     page.drawText("PATIENT'S NAME:", { x: 45, y: 701, size: 9, font: helvetica, color: rgb(0, 0, 0) });
     if (patientName) page.drawText(patientName.toUpperCase(), { x: 135, y: 701, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
     
     page.drawText("DATE BIRTH:", { x: 350, y: 701, size: 9, font: helvetica, color: rgb(0, 0, 0) });
     if (dob) page.drawText(dob.toUpperCase(), { x: 418, y: 701, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
 
-    // Row 2
+    // Row 2 (Aligned with left margin x: 45)
     page.drawText("AUTHORIZATION NUMBER:", { x: 45, y: 683, size: 9, font: helvetica, color: rgb(0, 0, 0) });
     if (authNum) page.drawText(authNum.toUpperCase(), { x: 180, y: 683, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
 
@@ -185,11 +185,14 @@ export async function POST(req: Request) {
     else if (intensityImp === "poor") drawCheck(382.88, 546.00);
 
     // 6. Pain Level Scale (1-10)
-    // Redraw Table Headers (SCALE, INITIAL, CURRENT) in Helvetica font
-    page.drawRectangle({ x: 44, y: 455, width: 62, height: 50, color: rgb(1, 1, 1) });
-    page.drawText("SCALE", { x: 48, y: 493, size: 9, font: helvetica, color: rgb(0, 0, 0) });
-    page.drawText("INITIAL", { x: 48, y: 477, size: 9, font: helvetica, color: rgb(0, 0, 0) });
-    page.drawText("CURRENT", { x: 48, y: 461, size: 9, font: helvetica, color: rgb(0, 0, 0) });
+    // Redraw Table Headers (SCALE, INITIAL, CURRENT) in Helvetica font.
+    // Start cover at x: 38 to completely wipe out the left vertical line of the table.
+    page.drawRectangle({ x: 38, y: 455, width: 68, height: 50, color: rgb(1, 1, 1) });
+    
+    // Reduce font size to 7.5 to fit in row boxes perfectly and align them vertically.
+    page.drawText("SCALE", { x: 45, y: 494.5, size: 7.5, font: helvetica, color: rgb(0, 0, 0) });
+    page.drawText("INITIAL", { x: 45, y: 478.5, size: 7.5, font: helvetica, color: rgb(0, 0, 0) });
+    page.drawText("CURRENT", { x: 45, y: 462.5, size: 7.5, font: helvetica, color: rgb(0, 0, 0) });
 
     // Initial row y: 479.50 (lowered to prevent cell line collisions)
     const initialPainXMap: Record<number, number> = {
@@ -251,15 +254,16 @@ export async function POST(req: Request) {
     }
 
     // 11. Goals Section - Clean Borderless Layout (Erase old table borders & redraw Goals lists in clean style)
+    // Start cover at x: 35 to completely wipe out the left vertical line of the table and align left.
     page.drawRectangle({
-      x: 43,
+      x: 35,
       y: 75,
-      width: 528,
+      width: 540,
       height: 220,
       color: rgb(1, 1, 1)
     });
 
-    // Short Term Goals
+    // Short Term Goals (Aligned perfectly with left margin x: 45)
     page.drawText("SHORT TERM OBJECTIVE GOALS & TIME FRAME", { x: 45, y: 280, size: 9.5, font: helvetica, color: rgb(0, 0, 0) });
     
     page.drawRectangle({ x: 45, y: 258, width: 9, height: 9, borderWidth: 1.5, borderColor: rgb(0, 0, 0) });
@@ -270,7 +274,7 @@ export async function POST(req: Request) {
     drawCheck(45, 240);
     page.drawText("Time Frame: 3 Months to 6 months".toUpperCase(), { x: 60, y: 241, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
 
-    // Long Term Goals
+    // Long Term Goals (Aligned perfectly with left margin x: 45)
     page.drawText("LONG TERM OBJECTIVE GOALS & TIME FRAME", { x: 45, y: 205, size: 9.5, font: helvetica, color: rgb(0, 0, 0) });
     
     page.drawRectangle({ x: 45, y: 183, width: 9, height: 9, borderWidth: 1.5, borderColor: rgb(0, 0, 0) });
