@@ -71,6 +71,9 @@ export default function ClinicalHub() {
   const [newCaseSearchQuery, setNewCaseSearchQuery] = useState("");
   const [newCaseSearchIcds, setNewCaseSearchIcds] = useState<any[]>([]);
   const [creatingCase, setCreatingCase] = useState(false);
+  const [dynamicInsurers, setDynamicInsurers] = useState<any[]>([]);
+  const [dynamicDoctors, setDynamicDoctors] = useState<string[]>([]);
+  const [dynamicReferringMds, setDynamicReferringMds] = useState<any[]>([]);
 
   // Daily SOAP Encounter Form State
   const [encounterDate, setEncounterDate] = useState("");
@@ -425,9 +428,10 @@ export default function ClinicalHub() {
     }
   }
 
-  // Fetch leads on mount
+  // Fetch leads and metadata on mount
   useEffect(() => {
     fetchLeads();
+    fetchDynamicMetadata();
     const today = new Date().toISOString().split("T")[0];
     setEncounterDate(today);
   }, []);
@@ -446,6 +450,59 @@ export default function ClinicalHub() {
       console.error("Error fetching patient leads:", err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchDynamicMetadata() {
+    try {
+      const { data, error } = await supabase
+        .from("injury_cases")
+        .select("insurance_carrier, claim_mailing_address, adjuster_fax, treating_doctor, referring_doctor, referring_doctor_npi");
+      
+      if (error) throw error;
+      if (data) {
+        // Process unique insurers
+        const insurersMap = new Map();
+        data.forEach(c => {
+          if (c.insurance_carrier) {
+            const name = c.insurance_carrier.trim();
+            if (!insurersMap.has(name.toLowerCase())) {
+              insurersMap.set(name.toLowerCase(), {
+                name,
+                address: c.claim_mailing_address || "",
+                fax: c.adjuster_fax || ""
+              });
+            }
+          }
+        });
+        setDynamicInsurers(Array.from(insurersMap.values()));
+
+        // Process unique treating doctors
+        const docsSet = new Set<string>();
+        data.forEach(c => {
+          if (c.treating_doctor) {
+            docsSet.add(c.treating_doctor.trim());
+          }
+        });
+        setDynamicDoctors(Array.from(docsSet));
+
+        // Process unique referring MDs
+        const mdsMap = new Map();
+        data.forEach(c => {
+          if (c.referring_doctor) {
+            const name = c.referring_doctor.trim();
+            if (!mdsMap.has(name.toLowerCase())) {
+              mdsMap.set(name.toLowerCase(), {
+                name,
+                npi: c.referring_doctor_npi || "1437503406"
+              });
+            }
+          }
+        });
+        setDynamicReferringMds(Array.from(mdsMap.values()));
+      }
+    } catch (err: any) {
+      console.error("Error fetching dynamic metadata:", err.message);
     }
   }
 
@@ -517,7 +574,13 @@ export default function ClinicalHub() {
     }
 
     setSelectedCase(injuryCase);
-    setInjuryType(injuryCase.case_type === "auto_injury" ? "auto" : "work");
+    setInjuryType(
+      injuryCase.case_type === "auto_injury" 
+        ? "auto" 
+        : injuryCase.case_type === "workers_comp" 
+        ? "work" 
+        : null
+    );
     setInjuryDate(injuryCase.injury_date || "");
     
     // Load fixed ICD codes from Case
@@ -794,6 +857,7 @@ export default function ClinicalHub() {
       // Refresh patient list and cases
       await fetchLeads();
       await fetchPatientCases(selectedLead.id);
+      await fetchDynamicMetadata();
     } catch (err: any) {
       alert("Failed to create case: " + err.message);
     } finally {
@@ -958,6 +1022,27 @@ export default function ClinicalHub() {
     { name: "Eldi Han", npi: "1437503406" }
   ];
 
+  const mergedInsurers = [...COMMON_INSURERS];
+  dynamicInsurers.forEach(dyn => {
+    if (!mergedInsurers.some(ins => ins.name.toLowerCase() === dyn.name.toLowerCase())) {
+      mergedInsurers.push(dyn);
+    }
+  });
+
+  const mergedDoctors = ["Choon Kia Yeo M.D.", "David Cai"];
+  dynamicDoctors.forEach(doc => {
+    if (!mergedDoctors.some(d => d.toLowerCase() === doc.toLowerCase())) {
+      mergedDoctors.push(doc);
+    }
+  });
+
+  const mergedReferringMds = [...COMMON_REFERRING_MDS];
+  dynamicReferringMds.forEach(dyn => {
+    if (!mergedReferringMds.some(md => md.name.toLowerCase() === dyn.name.toLowerCase())) {
+      mergedReferringMds.push(dyn);
+    }
+  });
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
       {/* Header */}
@@ -1119,7 +1204,7 @@ export default function ClinicalHub() {
                             }`}
                           >
                             <Briefcase className="h-3.5 w-3.5" />
-                            {c.case_type === "auto_injury" ? "🚗 Auto Case" : "💼 WC Case"} - {c.insurance_carrier || "Carrier"} ({c.claim_number || "No Claim#"})
+                            {c.case_type === "auto_injury" ? "🚗 Auto Case" : c.case_type === "va" ? "🎖️ VA Case" : "💼 WC Case"} - {c.insurance_carrier || "Carrier"} ({c.claim_number || "No Claim#"})
                             <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${isSelected ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-500'}`}>
                               Visit {c.used_visits}/{c.authorized_visits}
                             </span>
@@ -1262,6 +1347,7 @@ export default function ClinicalHub() {
                           >
                             <option value="auto_injury">🚗 Auto Injury / PIP</option>
                             <option value="workers_comp">💼 Workers' Compensation</option>
+                            <option value="va">🎖️ VA (Veterans Affairs)</option>
                           </select>
                         </div>
                         <div className="space-y-1">
@@ -1276,7 +1362,7 @@ export default function ClinicalHub() {
                           />
                           <select
                             onChange={(e) => {
-                              const ins = COMMON_INSURERS.find(x => x.name === e.target.value);
+                              const ins = mergedInsurers.find(x => x.name === e.target.value);
                               if (ins) {
                                 setNewCarrier(ins.name);
                                 setNewClaimMailingAddress(ins.address);
@@ -1287,7 +1373,7 @@ export default function ClinicalHub() {
                             defaultValue=""
                           >
                             <option value="" disabled>-- Select Insurer --</option>
-                            {COMMON_INSURERS.map(ins => (
+                            {mergedInsurers.map(ins => (
                               <option key={ins.name} value={ins.name}>{ins.name}</option>
                             ))}
                           </select>
@@ -1391,8 +1477,8 @@ export default function ClinicalHub() {
                             onChange={(e) => setNewTreatingDoc(e.target.value)}
                             className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500"
                           />
-                          <div className="flex gap-1.5 mt-1.5">
-                            {["Choon Kia Yeo M.D.", "David Cai"].map(doc => (
+                          <div className="flex flex-wrap gap-1.5 mt-1.5">
+                            {mergedDoctors.map(doc => (
                               <button
                                 key={doc}
                                 type="button"
@@ -1415,7 +1501,7 @@ export default function ClinicalHub() {
                           />
                           <select
                             onChange={(e) => {
-                              const selected = COMMON_REFERRING_MDS.find(x => x.name === e.target.value);
+                              const selected = mergedReferringMds.find(x => x.name === e.target.value);
                               if (selected) {
                                 setNewReferringDoc(selected.name);
                                 setNewReferringDocNpi(selected.npi);
@@ -1425,7 +1511,7 @@ export default function ClinicalHub() {
                             defaultValue=""
                           >
                             <option value="" disabled>-- Select Doctor --</option>
-                            {COMMON_REFERRING_MDS.map(md => (
+                            {mergedReferringMds.map(md => (
                               <option key={md.name} value={md.name}>{md.name}</option>
                             ))}
                           </select>
