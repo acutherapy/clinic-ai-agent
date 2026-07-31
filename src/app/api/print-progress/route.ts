@@ -66,23 +66,45 @@ export async function POST(req: Request) {
       });
     };
 
-    // 2. Fill Header Fields (Optimized y positions to prevent cell line collisions, font size reduced to 8.5)
-    if (patientName) drawText(patientName, 120, 706.00, 8.5);
-    if (dob) drawText(dob, 360, 705.50, 8.5);
-    if (authNum) drawText(authNum, 155, 689.50, 8.5);
-    if (diagnosis) drawText(diagnosis, 360, 688.00, 8.5);
-
-    // 3. Therapy Received Summary Sentence (Redrawn middle part to prevent collisions)
-    // Cover the entire "received medical massage" segment to allow clean redrawing
+    // 1. Compress top clinic info and title (Cover and redraw shifted up to gain whitespace balance)
     page.drawRectangle({
-      x: 120,
+      x: 0,
+      y: 720,
+      width: 612,
+      height: 72,
+      color: rgb(1, 1, 1)
+    });
+
+    // Centered coordinates for 612 width page:
+    drawText("ACUTHERAPY CLINICS", 216, 775, 14, helvetica);
+    
+    // Address & Contact Info (Centered)
+    page.drawText("1650 LILIHA ST SUITE 208, HONOLULU, HI 96817  |  TEL: (808) 528-7177  FAX: (808) 212-9459", {
+      x: 101,
+      y: 762,
+      size: 8,
+      font: helveticaNormal,
+      color: rgb(0, 0, 0)
+    });
+    
+    // Title (Centered & shifted up)
+    drawText("TREATMENT PROGRESS REPORT AND PLAN OF CARE", 131, 742, 12.5, helvetica);
+
+    // 2. Fill Header Fields (Perfect alignment with labels' baselines, shifted right for spacing)
+    if (patientName) drawText(patientName, 135, 702.33, 8.5);
+    if (dob) drawText(dob, 365, 701.12, 8.5);
+    if (authNum) drawText(authNum, 165, 685.51, 8.5);
+    if (diagnosis) drawText(diagnosis, 365, 684.24, 8.5);
+
+    // 3. Therapy Received Summary Sentence (Redrawn completely for clean custom spacing)
+    page.drawRectangle({
+      x: 118,
       y: 656,
-      width: 133,
+      width: 440,
       height: 12,
       color: rgb(1, 1, 1)
     });
     
-    // Draw "received" in regular weight
     page.drawText("received".toUpperCase(), {
       x: 120,
       y: 659.90,
@@ -91,22 +113,36 @@ export async function POST(req: Request) {
       color: rgb(0, 0, 0)
     });
     
-    // Draw count in bold
     if (numTreatments) {
-      drawText(String(numTreatments), 164, 659.90, 9.5);
+      drawText(String(numTreatments), 168, 659.90, 9.5);
     }
     
-    // Draw therapy type in bold
     const isAcupuncture = therapyType === "acupuncture";
     if (isAcupuncture) {
-      drawText("acupuncture", 182, 659.90, 9.5);
+      drawText("acupuncture", 185, 659.90, 9.5);
     } else {
-      drawText("medical massage", 182, 659.90, 9.5);
+      drawText("medical massage", 185, 659.90, 9.5);
     }
 
-    if (startDate) drawText(startDate, 335, 659.90, 9);
-    drawText("TO", 390, 659.90, 8);
-    if (endDate) drawText(endDate, 410, 659.90, 9);
+    page.drawText("treatments from".toUpperCase(), {
+      x: 270,
+      y: 659.90,
+      size: 9,
+      font: helveticaNormal,
+      color: rgb(0, 0, 0)
+    });
+
+    if (startDate) drawText(startDate, 362, 659.90, 9.5);
+    
+    page.drawText("to".toUpperCase(), {
+      x: 422,
+      y: 659.90,
+      size: 9,
+      font: helveticaNormal,
+      color: rgb(0, 0, 0)
+    });
+
+    if (endDate) drawText(endDate, 442, 659.90, 9.5);
 
     // 4. Subjective Checklist
     // - "improvement": x: 117.62, y: 634.44
@@ -190,17 +226,12 @@ export async function POST(req: Request) {
       drawText(frequency, 305, 331.20, 9, helveticaNormal);
     }
 
-    // 11. Fix the template PDF layout bug: Redraw Goal Table Headers to prevent horizontal line collision
-    // Cover up the old headers
-    page.drawRectangle({ x: 45, y: 259, width: 120, height: 26, color: rgb(1, 1, 1) });
-    page.drawRectangle({ x: 300, y: 259, width: 120, height: 26, color: rgb(1, 1, 1) });
+    // 11. Fix the template PDF layout bug: Cover and redraw only the word "Goals" slightly higher
+    page.drawRectangle({ x: 45, y: 260, width: 120, height: 11, color: rgb(1, 1, 1) });
+    page.drawRectangle({ x: 300, y: 260, width: 120, height: 11, color: rgb(1, 1, 1) });
     
-    // Draw corrected headers shifted up
-    page.drawText("SHORT TERM OBJECTIVE", { x: 47.70, y: 276, size: 8, font: helvetica, color: rgb(0, 0, 0) });
-    page.drawText("GOALS", { x: 47.70, y: 266, size: 8, font: helvetica, color: rgb(0, 0, 0) });
-    
-    page.drawText("LONG TERM OBJECTIVE", { x: 302.70, y: 276, size: 8, font: helvetica, color: rgb(0, 0, 0) });
-    page.drawText("GOALS", { x: 302.70, y: 266, size: 8, font: helvetica, color: rgb(0, 0, 0) });
+    drawText("GOALS", 47.70, 269, 8, helvetica);
+    drawText("GOALS", 302.70, 269, 8, helvetica);
 
     // Today's Date bottom right next to signature
     if (date) {
