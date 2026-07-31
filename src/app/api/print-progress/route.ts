@@ -67,57 +67,57 @@ export async function POST(req: Request) {
       });
     };
 
-    // 1. Compress top clinic info and title (Cover and redraw shifted down another 2 lines to y-offsets for balance)
+    // 1. Compress top clinic info and title (Cover completely, clinic header restored to original upper level, title ONLY shifted down)
     page.drawRectangle({
       x: 0,
-      y: 675,
+      y: 695,
       width: 612,
-      height: height - 675,
+      height: height - 695,
       color: rgb(1, 1, 1)
     });
 
-    // Centered coordinates shifted down 2 lines:
-    drawText("ACUTHERAPY CLINICS", 216, height - 66, 14, helvetica);
+    // Centered coordinates relative to dynamic height:
+    drawText("ACUTHERAPY CLINICS", 216, height - 26, 14, helvetica);
     
-    // Address & Contact Info (Centered)
+    // Address & Contact Info (Centered at top)
     page.drawText("1650 LILIHA ST SUITE 208, HONOLULU, HI 96817  |  TEL: (808) 528-7177  FAX: (808) 212-9459", {
       x: 101,
-      y: height - 79,
+      y: height - 39,
       size: 8,
       font: helveticaNormal,
       color: rgb(0, 0, 0)
     });
     
-    // Title (Centered)
-    drawText("TREATMENT PROGRESS REPORT AND PLAN OF CARE", 131, height - 99, 12.5, helvetica);
+    // Only Title line is shifted down 2 lines (y = height - 79)
+    drawText("TREATMENT PROGRESS REPORT AND PLAN OF CARE", 131, height - 79, 12.5, helvetica);
 
-    // 2. Patient Info Section - Completely BORDERLESS (Align values column-wise to x: 175 and x: 375)
+    // 2. Patient Info Section - Completely BORDERLESS (Restored to original y-coordinates: 702.33 & 685.51)
     page.drawRectangle({
       x: 35,
-      y: 652,
+      y: 672,
       width: 540,
-      height: 50,
+      height: 48,
       color: rgb(1, 1, 1)
     });
 
     // Row 1 (Left column starts at x: 45, Right column starts at x: 305)
-    page.drawText("PATIENT'S NAME:", { x: 45, y: 683, size: 9, font: helvetica, color: rgb(0, 0, 0) });
-    if (patientName) page.drawText(patientName.toUpperCase(), { x: 175, y: 683, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
+    page.drawText("PATIENT'S NAME:", { x: 45, y: 702.33, size: 9, font: helvetica, color: rgb(0, 0, 0) });
+    if (patientName) page.drawText(patientName.toUpperCase(), { x: 175, y: 702.33, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
     
-    page.drawText("DATE BIRTH:", { x: 305, y: 683, size: 9, font: helvetica, color: rgb(0, 0, 0) });
-    if (dob) page.drawText(dob.toUpperCase(), { x: 375, y: 683, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
+    page.drawText("DATE BIRTH:", { x: 305, y: 702.33, size: 9, font: helvetica, color: rgb(0, 0, 0) });
+    if (dob) page.drawText(dob.toUpperCase(), { x: 375, y: 702.33, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
 
     // Row 2 (Left column starts at x: 45, Right column starts at x: 305)
-    page.drawText("AUTHORIZATION NUMBER:", { x: 45, y: 665, size: 9, font: helvetica, color: rgb(0, 0, 0) });
-    if (authNum) page.drawText(authNum.toUpperCase(), { x: 175, y: 665, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
+    page.drawText("AUTHORIZATION NUMBER:", { x: 45, y: 685.51, size: 9, font: helvetica, color: rgb(0, 0, 0) });
+    if (authNum) page.drawText(authNum.toUpperCase(), { x: 175, y: 685.51, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
 
-    page.drawText("DIAGNOSIS:", { x: 305, y: 665, size: 9, font: helvetica, color: rgb(0, 0, 0) });
-    if (diagnosis) page.drawText(diagnosis.toUpperCase(), { x: 375, y: 665, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
+    page.drawText("DIAGNOSIS:", { x: 305, y: 685.51, size: 9, font: helvetica, color: rgb(0, 0, 0) });
+    if (diagnosis) page.drawText(diagnosis.toUpperCase(), { x: 375, y: 685.51, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
 
-    // 3. Therapy Received Summary Sentence (Redrawn completely in unified case to match template)
+    // 3. Therapy Received Summary Sentence (Restored to original y-coordinate: 659.90, using unified lowercase sentence-case)
     page.drawRectangle({
       x: 118,
-      y: 636,
+      y: 656,
       width: 440,
       height: 12,
       color: rgb(1, 1, 1)
@@ -125,7 +125,7 @@ export async function POST(req: Request) {
     
     page.drawText("received", {
       x: 120,
-      y: 639.90,
+      y: 659.90,
       size: 9.5,
       font: helveticaNormal,
       color: rgb(0, 0, 0)
@@ -134,7 +134,7 @@ export async function POST(req: Request) {
     if (numTreatments) {
       page.drawText(String(numTreatments), {
         x: 164,
-        y: 639.90,
+        y: 659.90,
         size: 9.5,
         font: helvetica,
         color: rgb(0, 0, 0)
@@ -145,7 +145,7 @@ export async function POST(req: Request) {
     const therapyText = isAcupuncture ? "acupuncture" : "medical massage";
     page.drawText(therapyText, {
       x: 182,
-      y: 639.90,
+      y: 659.90,
       size: 9.5,
       font: helvetica,
       color: rgb(0, 0, 0)
@@ -153,7 +153,7 @@ export async function POST(req: Request) {
 
     page.drawText("treatments from", {
       x: 268,
-      y: 639.90,
+      y: 659.90,
       size: 9.5,
       font: helveticaNormal,
       color: rgb(0, 0, 0)
@@ -162,7 +162,7 @@ export async function POST(req: Request) {
     if (startDate) {
       page.drawText(startDate, {
         x: 352,
-        y: 639.90,
+        y: 659.90,
         size: 9.5,
         font: helvetica,
         color: rgb(0, 0, 0)
@@ -171,7 +171,7 @@ export async function POST(req: Request) {
     
     page.drawText("to", {
       x: 412,
-      y: 639.90,
+      y: 659.90,
       size: 9.5,
       font: helveticaNormal,
       color: rgb(0, 0, 0)
@@ -180,7 +180,7 @@ export async function POST(req: Request) {
     if (endDate) {
       page.drawText(endDate, {
         x: 428,
-        y: 639.90,
+        y: 659.90,
         size: 9.5,
         font: helvetica,
         color: rgb(0, 0, 0)
@@ -214,7 +214,7 @@ export async function POST(req: Request) {
     // Start cover at x: 38 and increase height to 54 to completely wipe out the top horizontal line.
     page.drawRectangle({ x: 38, y: 455, width: 68, height: 54, color: rgb(1, 1, 1) });
     
-    // Shift row labels UP by 3 points to center them vertically relative to row checkboxes.
+    // Shift row labels UP by 3 points to center them vertically relative to row checkboxes (y is 497.5, 481.5, 465.5).
     page.drawText("SCALE", { x: 45, y: 497.5, size: 7.5, font: helvetica, color: rgb(0, 0, 0) });
     page.drawText("INITIAL", { x: 45, y: 481.5, size: 7.5, font: helvetica, color: rgb(0, 0, 0) });
     page.drawText("CURRENT", { x: 45, y: 465.5, size: 7.5, font: helvetica, color: rgb(0, 0, 0) });

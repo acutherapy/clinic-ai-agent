@@ -269,30 +269,25 @@ export default function ClinicalHub() {
     
     setProgressAuthNum(selectedCase?.claim_number || "");
     
-    // Default dates
-    const today = new Date().toLocaleDateString("en-US", {
-      month: "2-digit",
-      day: "2-digit",
-      year: "numeric"
-    });
-    setProgressEndDate(today);
-    setProgressDate(today);
+    // Get date string in YYYY-MM-DD format
+    const formatDateToISO = (d: Date) => {
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      const year = d.getFullYear();
+      return `${year}-${month}-${day}`;
+    };
+
+    const todayISO = formatDateToISO(new Date());
+    setProgressEndDate(todayISO);
+    setProgressDate(todayISO);
     
     // Set start date from active case if present, or 4 weeks ago
     if (selectedCase?.start_date) {
-      setProgressStartDate(new Date(selectedCase.start_date).toLocaleDateString("en-US", {
-        month: "2-digit",
-        day: "2-digit",
-        year: "numeric"
-      }));
+      setProgressStartDate(formatDateToISO(new Date(selectedCase.start_date)));
     } else {
       const fourWeeksAgo = new Date();
       fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 30);
-      setProgressStartDate(fourWeeksAgo.toLocaleDateString("en-US", {
-        month: "2-digit",
-        day: "2-digit",
-        year: "numeric"
-      }));
+      setProgressStartDate(formatDateToISO(fourWeeksAgo));
     }
     
     // Default therapy type from active case
@@ -333,6 +328,13 @@ export default function ClinicalHub() {
         : icdCode.replace(/\./g, "").startsWith("M542")
         ? "Cervicalgia"
         : "Chronic Pain";
+
+      const formatToMMDDYYYY = (dateStr: string) => {
+        if (!dateStr) return "";
+        if (!dateStr.includes("-")) return dateStr;
+        const [y, m, d] = dateStr.split("-");
+        return `${m}/${d}/${y}`;
+      };
         
       const res = await fetch("/api/print-progress", {
         method: "POST",
@@ -344,8 +346,8 @@ export default function ClinicalHub() {
           diagnosis: icdCode + " " + icdDesc,
           numTreatments: progressNumTreatments,
           therapyType: progressTherapyType,
-          startDate: progressStartDate,
-          endDate: progressEndDate,
+          startDate: formatToMMDDYYYY(progressStartDate),
+          endDate: formatToMMDDYYYY(progressEndDate),
           subjective: progressSubjective,
           intensityImp: progressIntensityImp,
           initialPain: progressInitialPain,
@@ -353,7 +355,7 @@ export default function ClinicalHub() {
           enduranceFunc: progressEnduranceFunc,
           recommendation: progressRecommendation,
           frequency: progressFrequency,
-          date: progressDate
+          date: formatToMMDDYYYY(progressDate)
         })
       });
       
@@ -2471,10 +2473,9 @@ export default function ClinicalHub() {
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold uppercase text-slate-400">Today's Date</label>
                   <input
-                    type="text"
+                    type="date"
                     value={progressDate}
                     onChange={(e) => setProgressDate(e.target.value)}
-                    placeholder="MM/DD/YYYY"
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
                   />
                 </div>
@@ -2498,7 +2499,10 @@ export default function ClinicalHub() {
                   <label className="text-[9px] font-bold uppercase text-slate-400">Therapy Received</label>
                   <select
                     value={progressTherapyType}
-                    onChange={(e) => setProgressTherapyType(e.target.value)}
+                    onChange={(e) => {
+                      setProgressTherapyType(e.target.value);
+                      setProgressRecommendation(e.target.value);
+                    }}
                     className="w-full px-2 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
                   >
                     <option value="acupuncture">Acupuncture</option>
@@ -2509,10 +2513,9 @@ export default function ClinicalHub() {
                 <div className="col-span-3 space-y-1">
                   <label className="text-[9px] font-bold uppercase text-slate-400">Start Date</label>
                   <input
-                    type="text"
+                    type="date"
                     value={progressStartDate}
                     onChange={(e) => setProgressStartDate(e.target.value)}
-                    placeholder="MM/DD/YYYY"
                     className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
                   />
                 </div>
@@ -2520,10 +2523,9 @@ export default function ClinicalHub() {
                 <div className="col-span-3 space-y-1">
                   <label className="text-[9px] font-bold uppercase text-slate-400">End Date</label>
                   <input
-                    type="text"
+                    type="date"
                     value={progressEndDate}
                     onChange={(e) => setProgressEndDate(e.target.value)}
-                    placeholder="MM/DD/YYYY"
                     className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
                   />
                 </div>
@@ -2623,7 +2625,10 @@ export default function ClinicalHub() {
                   <label className="text-[10px] font-bold uppercase text-slate-400">Recommendation</label>
                   <select
                     value={progressRecommendation}
-                    onChange={(e) => setProgressRecommendation(e.target.value)}
+                    onChange={(e) => {
+                      setProgressRecommendation(e.target.value);
+                      setProgressTherapyType(e.target.value);
+                    }}
                     className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
                   >
                     <option value="acupuncture">Acupuncture</option>
