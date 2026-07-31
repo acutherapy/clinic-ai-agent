@@ -151,11 +151,13 @@ export default function ClinicalHub() {
                       selectedCase?.insurance_carrier?.toLowerCase().includes("massage") || false;
     
     if (isMassage) {
-      setRfsCptCodes("97124x4");
-      setRfsCptDesc("Medical Massage");
+      setRfsCptCodes("97124 - 4 UNITS");
+      setRfsCptDesc("Massage therapy");
+      setRfsReason("Requesting more medical massage visits, as patient's condition shows slow signs of improvement with care.");
     } else {
-      setRfsCptCodes("97813x1 & 97814x3");
+      setRfsCptCodes("97813X1, 97814X2,97016");
       setRfsCptDesc("Acupuncture");
+      setRfsReason("Requesting more acupuncture visits, as patient's condition shows slow signs of improvement with my care.");
     }
     
     const today = new Date().toLocaleDateString("en-US", {
@@ -164,7 +166,6 @@ export default function ClinicalHub() {
       year: "numeric"
     });
     setRfsDate(today);
-    setRfsReason("");
     setShowRfsModal(true);
   }
 
@@ -2204,20 +2205,37 @@ export default function ClinicalHub() {
                     placeholder="e.g. 97813x1 & 97814x3"
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
                   />
-                  <div className="flex gap-1.5 mt-1">
-                    {["97813x1 & 97814x3", "97124x4", "97813x1"].map(c => (
-                      <button
-                        key={c}
-                        type="button"
-                        onClick={() => {
-                          setRfsCptCodes(c);
-                          setRfsCptDesc(c.includes("97124") ? "Medical Massage" : "Acupuncture");
-                        }}
-                        className="text-[9px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded"
-                      >
-                        {c}
-                      </button>
-                    ))}
+                  <div className="flex gap-2 mt-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRfsCptCodes("97813X1, 97814X2,97016");
+                        setRfsCptDesc("Acupuncture");
+                        setRfsReason("Requesting more acupuncture visits, as patient's condition shows slow signs of improvement with my care.");
+                      }}
+                      className={`text-[9px] font-bold px-2 py-1 rounded transition-all border ${
+                        rfsCptDesc === "Acupuncture"
+                          ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                          : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
+                      }`}
+                    >
+                      Acupuncture 针灸 Template
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRfsCptCodes("97124 - 4 UNITS");
+                        setRfsCptDesc("Massage therapy");
+                        setRfsReason("Requesting more medical massage visits, as patient's condition shows slow signs of improvement with care.");
+                      }}
+                      className={`text-[9px] font-bold px-2 py-1 rounded transition-all border ${
+                        rfsCptDesc === "Massage therapy" || rfsCptDesc.toLowerCase().includes("massage")
+                          ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                          : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
+                      }`}
+                    >
+                      Medical Massage 推拿 Template
+                    </button>
                   </div>
                 </div>
                 <div className="space-y-1">

@@ -63,17 +63,7 @@ export async function POST(req: Request) {
     try { form.getRadioGroup("RadioButtonList[1]").select("1"); } catch(e){} // YES
     try { form.getRadioGroup("RadioButtonList[2]").select("0"); } catch(e){} // NO
 
-    // 3. Draw Handwritten signature next to Date[0]
-    const page = pdfDoc.getPages()[0];
-    const timesItalic = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
-    
-    page.drawText("David Cai", {
-      x: 55,
-      y: 138,
-      size: 22,
-      font: timesItalic,
-      color: rgb(0, 0, 0.6) // Classic dark blue ink signature
-    });
+
 
     // 4. Flatten the form to lock inputs and ensure clean printing compatibility
     form.flatten();
