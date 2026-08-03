@@ -48,6 +48,41 @@ export async function POST(req: NextRequest) {
     const cleanPhone = phone.replace(/\D/g, "");
     const cleanPhone10 = cleanPhone.slice(-10);
 
+    const isAya = cleanPhone10 === "8088951383";
+    const isTomomi = cleanPhone10 === "8084289176";
+
+    // Therapist Interceptors (Aya & Tomomi)
+    if (isAya || isTomomi) {
+      const therapistName = isAya ? "Aya" : "Tomomi";
+      if (direction === "Inbound") {
+        console.log(`[Therapist Inbound Interceptor] Received SMS from ${therapistName} (${phone}): "${message}"`);
+        await saveConversation(phone, "user", message);
+        
+        const forwardText = `[Therapist SMS] From ${therapistName} (${phone}): "${message}"`;
+        await sendSMS(DR_CAI_PHONE, forwardText);
+        await saveConversation(DR_CAI_PHONE, "assistant", forwardText);
+        
+        return NextResponse.json({
+          success: true,
+          therapistInboundHandled: true
+        });
+      } else {
+        console.log(`[Therapist Outbound Interceptor] Sent message to ${therapistName} (${phone}): "${message}"`);
+        await saveConversation(phone, "assistant", message);
+        
+        if (!message.startsWith("[Therapist Outbound]") && !message.startsWith("[Therapist SMS]")) {
+          const forwardText = `[Therapist Outbound] Sent to ${therapistName} (${phone}): "${message}"`;
+          await sendSMS(DR_CAI_PHONE, forwardText);
+          await saveConversation(DR_CAI_PHONE, "assistant", forwardText);
+        }
+        
+        return NextResponse.json({
+          success: true,
+          therapistOutboundLogged: true
+        });
+      }
+    }
+
     // Outbound Interceptor for Human Takeover
     if (direction !== "Inbound") {
       console.log(`[Outbound SMS] Sent to patient: ${phone} - "${message}"`);

@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/follow-up",
       "schedule": "0 19 * * *"
+    },
+    {
+      "path": "/api/cron/therapist-reminder",
+      "schedule": "0 1 * * *"
     }
   ]
 }
