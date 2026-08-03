@@ -300,7 +300,6 @@ export default function LeadsDashboard() {
       // By default, only keep active leads that need ongoing follow-up/action
       const activeStatuses = [
         "new", "contacted", "booked", "answered", 
-        "ongoing", "ongoing_sms", 
         "following up 1", "following up 2", "following up 3", "following up 4", "following up", 
         "no respond", "no response", "no show"
       ];
