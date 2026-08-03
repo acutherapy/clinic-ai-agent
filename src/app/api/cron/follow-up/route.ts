@@ -9,7 +9,6 @@ export async function GET(req: NextRequest) {
     // 1. Fetch all leads who are eligible for follow-up (NEW or CONTACTED, not opted out, not paused)
     const activeFollowUpStatuses = [
       "NEW", "CONTACTED", "contacted", 
-      "ongoing", "ONGOING", "ongoing_sms", "ONGOING_SMS",
       "no respond", "no show", 
       "following up 1", "following up 2", "following up 3", "following up 4",
       "NO_RESPOND", "NO_SHOW", 
