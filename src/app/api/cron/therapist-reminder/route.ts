@@ -106,15 +106,10 @@ export async function GET(req: NextRequest) {
       });
     };
 
-    // Filter appointments for the specific therapist and massage type
+    // Filter appointments for massage type (regardless of therapist name)
     const therapistEvents = realAppointments.filter((a: any) => {
       const summary = (a.summary || "").toLowerCase();
-      const description = (a.description || "").toLowerCase();
-      
-      const isMassage = summary.includes("massage");
-      const isTherapist = summary.includes(therapistName.toLowerCase()) || description.includes(therapistName.toLowerCase());
-      
-      return isMassage && isTherapist;
+      return summary.includes("massage");
     });
 
     // Sort chronologically
