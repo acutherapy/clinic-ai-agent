@@ -103,7 +103,22 @@ export async function GET(req: NextRequest) {
       ]);
       const aiEvents = aiRes.data.items || [];
       const clinicEvents = clinicRes.data.items || [];
-      todayAppointments = [...aiEvents, ...clinicEvents];
+      
+      // Deduplicate events by unique iCalUID or ID to prevent double-counting mirrored events
+      const seenIds = new Set();
+      const uniqueEvents = [];
+      for (const event of [...aiEvents, ...clinicEvents]) {
+        const uid = event.iCalUID || event.id;
+        if (uid) {
+          if (!seenIds.has(uid)) {
+            seenIds.add(uid);
+            uniqueEvents.push(event);
+          }
+        } else {
+          uniqueEvents.push(event);
+        }
+      }
+      todayAppointments = uniqueEvents;
     } catch (calendarErr) {
       console.error("Error fetching Google Calendar events for daily report:", calendarErr);
     }
@@ -111,6 +126,10 @@ export async function GET(req: NextRequest) {
     const isAppointment = (event: any) => {
       const summary = (event.summary || "").toLowerCase();
       if (!summary) return false;
+      
+      // Exclude all-day events / blocker events (which do not have a specific start time)
+      if (!event.start?.dateTime) return false;
+
       if (
         summary.includes("break") ||
         summary.includes("unavailable") ||
@@ -481,13 +500,7 @@ If no new valid clinic-related questions or local terms are found, output exactl
     const bookingsCount = bookings?.length || 0;
 
     const reportMessage = `
-📊 Emma 每日工作汇报 (${reportDateStr})
-
-⚠️ 待跟进客户汇总 (Leads Pending Action):
-${pendingBreakdownText}
-
-📋 需回复新客名单 (Active Action List):
-${urgentListText}
+📊 Emma 每日数据汇报 (${reportDateStr})
 
 1. 新客线索 (Leads Received): ${leadsCount} 个 (当天/Today)
 2. 预约成功 (Successful Bookings): ${bookingsCount} 个 (当天/Today)
@@ -502,12 +515,10 @@ ${urgentListText}
    - 针灸治疗客户: ${todayAcu} 个
    - 医疗按摩客户: ${todayMassage} 个
 
-⚠️ 转诊单到期提醒 (Referral Alerts):
-   - 已发送额度不足提醒: ${lowBalanceWarnedCount} 个
-   - 已发送过期警示提醒: ${expiryWarnedCount} 个
-
-📶 信号与通道状态 (Webhook Sync):
-   - RingCentral 订阅状态: ${subscriptionStatus}
+⚠️ 待处理警报与摘要:
+   - 需人工回复患者数: ${pendingCount} 个
+   - 转诊到期已发提醒: ${lowBalanceWarnedCount + expiryWarnedCount} 个
+   - 信号订阅状态: ${subscriptionStatus.includes("Healthy") ? "正常 (Healthy)" : "异常"}
 
 💬 对话摘要与跟进提醒 (当天/Today):
 ${chatSummary}
