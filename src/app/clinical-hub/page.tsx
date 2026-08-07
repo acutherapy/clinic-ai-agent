@@ -488,7 +488,21 @@ export default function ClinicalHub() {
         });
         setDynamicDoctors(Array.from(docsSet));
 
-        // Try querying referring_doctors lookup table first, fallback to scanning cases if it doesn't exist yet
+        // Process unique referring MDs from historical cases
+        const caseMdsMap = new Map();
+        data.forEach(c => {
+          if (c.referring_doctor) {
+            const name = c.referring_doctor.trim();
+            if (!caseMdsMap.has(name.toLowerCase())) {
+              caseMdsMap.set(name.toLowerCase(), {
+                name,
+                npi: c.referring_doctor_npi || "1437503406"
+              });
+            }
+          }
+        });
+
+        // Try querying referring_doctors lookup table
         try {
           const { data: rdData, error: rdError } = await supabase
             .from("referring_doctors")
@@ -496,41 +510,31 @@ export default function ClinicalHub() {
             .order("name", { ascending: true });
           
           if (!rdError && rdData && rdData.length > 0) {
-            setDynamicReferringMds(rdData.map(d => ({
+            // Map table doctors to standard format
+            const tableMds = rdData.map(d => ({
               name: d.last_name ? `${d.name} ${d.last_name}`.trim() : d.name,
               npi: d.npi || "1437503406"
-            })));
-          } else {
-            // Fallback: extract unique referring MDs from injury cases
-            const mdsMap = new Map();
-            data.forEach(c => {
-              if (c.referring_doctor) {
-                const name = c.referring_doctor.trim();
-                if (!mdsMap.has(name.toLowerCase())) {
-                  mdsMap.set(name.toLowerCase(), {
-                    name,
-                    npi: c.referring_doctor_npi || "1437503406"
-                  });
-                }
+            }));
+
+            // Merge table doctors with case doctors (avoiding duplicates)
+            const mergedMap = new Map();
+            tableMds.forEach(md => {
+              mergedMap.set(md.name.toLowerCase(), md);
+            });
+            Array.from(caseMdsMap.values()).forEach(md => {
+              if (!mergedMap.has(md.name.toLowerCase())) {
+                mergedMap.set(md.name.toLowerCase(), md);
               }
             });
-            setDynamicReferringMds(Array.from(mdsMap.values()));
+
+            // Sort alphabetically by name
+            const sortedMds = Array.from(mergedMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+            setDynamicReferringMds(sortedMds);
+          } else {
+            setDynamicReferringMds(Array.from(caseMdsMap.values()));
           }
         } catch (rdTableErr) {
-          // Fallback on catch block
-          const mdsMap = new Map();
-          data.forEach(c => {
-            if (c.referring_doctor) {
-              const name = c.referring_doctor.trim();
-              if (!mdsMap.has(name.toLowerCase())) {
-                mdsMap.set(name.toLowerCase(), {
-                  name,
-                  npi: c.referring_doctor_npi || "1437503406"
-                });
-              }
-            }
-          });
-          setDynamicReferringMds(Array.from(mdsMap.values()));
+          setDynamicReferringMds(Array.from(caseMdsMap.values()));
         }
       }
     } catch (err: any) {
