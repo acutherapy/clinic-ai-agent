@@ -585,18 +585,20 @@ export default function ClinicalHub() {
     
     // Load fixed ICD codes from Case
     if (injuryCase.active_icd_codes && injuryCase.active_icd_codes.length > 0) {
-      // Fetch descriptions for these codes
+      // Strip dots to query the 'code' column
+      const codesNoDots = injuryCase.active_icd_codes.map((c: string) => c.replace(/\./g, "").toUpperCase());
       const { data, error } = await supabase
         .from("icd10_codes")
-        .select("code, short_description")
-        .in("code", injuryCase.active_icd_codes);
+        .select("code, code_with_separator, short_description")
+        .in("code", codesNoDots);
 
       if (!error && data) {
         // Map codes maintaining database descriptions and default pain scale to 6
         const mapped = injuryCase.active_icd_codes.map((code: string) => {
-          const matched = data.find(d => d.code === code);
+          const cleanCode = code.replace(/\./g, "");
+          const matched = data.find(d => d.code === cleanCode);
           return {
-            icdCode: code,
+            icdCode: matched ? (matched.code_with_separator || matched.code) : code,
             complaintText: matched ? matched.short_description : "Pain, unspecified",
             painLevel: 6
           };
@@ -624,13 +626,18 @@ export default function ClinicalHub() {
         const codesNoDots = rawCodes.map(c => c.replace(/\./g, "").toUpperCase());
         const { data, error } = await supabase
           .from("icd10_codes")
-          .select("code, short_description")
+          .select("code, code_with_separator, short_description")
           .in("code", codesNoDots);
         
         if (!error && data && data.length > 0) {
           setNewCaseIcds(prev => {
             const existing = new Set(prev.map(x => x.code));
-            const newAdded = data.filter(d => !existing.has(d.code));
+            const newAdded = data
+              .filter(d => !existing.has(d.code_with_separator || d.code))
+              .map(d => ({
+                code: d.code_with_separator || d.code,
+                short_description: d.short_description
+              }));
             return [...prev, ...newAdded];
           });
           setNewCaseSearchQuery("");
@@ -644,17 +651,19 @@ export default function ClinicalHub() {
         const codesNoDots = rawCodes.map(c => c.replace(/\./g, "").toUpperCase());
         const { data, error } = await supabase
           .from("icd10_codes")
-          .select("code, short_description")
+          .select("code, code_with_separator, short_description")
           .in("code", codesNoDots);
         
         if (!error && data && data.length > 0) {
           setActiveDiagnoses(prev => {
             const existing = new Set(prev.map(x => x.icdCode));
-            const newAdded = data.filter(d => !existing.has(d.code)).map(d => ({
-              icdCode: d.code,
-              complaintText: d.short_description,
-              painLevel: 6
-            }));
+            const newAdded = data
+              .filter(d => !existing.has(d.code_with_separator || d.code))
+              .map(d => ({
+                icdCode: d.code_with_separator || d.code,
+                complaintText: d.short_description,
+                painLevel: 6
+              }));
             return [...prev, ...newAdded];
           });
           setSearchQuery("");
@@ -677,12 +686,16 @@ export default function ClinicalHub() {
       try {
         const { data, error } = await supabase
           .from("icd10_codes")
-          .select("code, short_description")
+          .select("code, code_with_separator, short_description")
           .or(`code.ilike.%${cleanQuery}%,code_with_separator.ilike.%${rawQuery}%,short_description.ilike.%${rawQuery}%`)
           .limit(8);
 
         if (!error && data) {
-          setIcdResults(data);
+          const formatted = data.map(d => ({
+            code: d.code_with_separator || d.code,
+            short_description: d.short_description
+          }));
+          setIcdResults(formatted);
         }
       } catch (err) {
         console.error("ICD autocomplete error:", err);
@@ -706,12 +719,16 @@ export default function ClinicalHub() {
       try {
         const { data, error } = await supabase
           .from("icd10_codes")
-          .select("code, short_description")
+          .select("code, code_with_separator, short_description")
           .or(`code.ilike.%${cleanQuery}%,code_with_separator.ilike.%${rawQuery}%,short_description.ilike.%${rawQuery}%`)
           .limit(6);
 
         if (!error && data) {
-          setNewCaseSearchIcds(data);
+          const formatted = data.map(d => ({
+            code: d.code_with_separator || d.code,
+            short_description: d.short_description
+          }));
+          setNewCaseSearchIcds(formatted);
         }
       } catch (err) {
         console.error("ICD autocomplete error:", err);
