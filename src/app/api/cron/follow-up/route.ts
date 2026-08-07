@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
       console.error("Error fetching slots for follow-up campaign:", err);
     }
 
-    for (const lead of leads) {
+    const promises = leads.map(async (lead) => {
       const createdAt = new Date(lead.created_at);
       const diffTime = Math.abs(nowHonolulu.getTime() - createdAt.getTime());
       const elapsedDays = diffTime / (1000 * 60 * 60 * 24);
@@ -76,12 +76,22 @@ export async function GET(req: NextRequest) {
       }
 
       if (targetStage > 0) {
+        // Safety check: Check last contacted time. If less than 20 hours ago, skip to avoid spam.
+        if (lead.last_contacted_at) {
+          const lastContacted = new Date(lead.last_contacted_at);
+          const hoursSinceContact = (nowHonolulu.getTime() - lastContacted.getTime()) / (1000 * 60 * 60);
+          if (hoursSinceContact < 20) {
+            console.log(`Skipping automated follow-up for ${lead.phone} because they were contacted ${hoursSinceContact.toFixed(1)} hours ago.`);
+            return;
+          }
+        }
+
         // Safety check: Check last message role. If it was from the user, do NOT send automated campaign.
         const conversationHistory = await getConversationHistory(lead.phone, 6);
         
-        if (conversationHistory.length > 0 && conversationHistory[0].role === "user") {
+        if (conversationHistory.length > 0 && conversationHistory[conversationHistory.length - 1].role === "user") {
           console.log(`Skipping automated follow-up for ${lead.phone} because the last message was from the user.`);
-          continue;
+          return;
         }
 
         console.log(`Triggering Follow-up Stage ${targetStage} for lead: ${lead.name} (${lead.phone})`);
@@ -105,6 +115,11 @@ export async function GET(req: NextRequest) {
 
         // Save assistant outreach to conversation history
         await saveConversation(lead.phone, "assistant", smsMessage);
+
+        // Forward a copy to Dr. Cai at 8083083879
+        const DR_CAI_PHONE = "8083083879";
+        const copyMsg = `[Emma 自动跟进] 已向患者 ${lead.name} (${lead.phone}) 发送第 ${targetStage} 阶段跟进短信：\n\n"${smsMessage}"`;
+        await sendSMS(DR_CAI_PHONE, copyMsg);
 
         let newStatus = "CONTACTED";
         if (targetStage === 1) newStatus = "following up 1";
@@ -140,7 +155,9 @@ export async function GET(req: NextRequest) {
         processedCount++;
         sentList.push({ name: lead.name, phone: lead.phone, stage: targetStage });
       }
-    }
+    });
+
+    await Promise.all(promises);
 
     return NextResponse.json({
       success: true,
