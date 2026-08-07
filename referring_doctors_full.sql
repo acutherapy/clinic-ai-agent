@@ -37,7 +37,6 @@ INSERT INTO public.referring_doctors (name, last_name, address, city, state, zip
     ('Connie', 'Fu', '234 Goodman St MI 0781', 'Cincinnati', 'OH', '45219', '', '1437503406'),
     ('Cheyanne', 'Genovese', '1401 S. Beretania St. # 102', 'Honolulu', 'HI', '96814', '', '1437503406'),
     ('Martin', 'Guerrero', 'PO BOX 917770', 'Orlando', 'FL', '32891-7770', '', '1437503406'),
-    ('Martin', 'Guerrero', '5 TAMPA GENERAL CIR # 750', 'Tampa', 'FL', '33606-3601', '', '1437503406'),
     ('Eldi', 'Han', '10535 HOSPITAL WAY', 'Mather', 'CA', '95655-4200', '', '1437503406'),
     ('Don', 'Harada', '1580 MAKALOA ST STE 798', 'Honolulu', 'HI', '96814', '', '1437503406'),
     ('Carl', 'Hodel', '500 Ala Moana Blvd Suite 6D', 'Honolulu', 'HI', '96813', '', '1437503406'),
