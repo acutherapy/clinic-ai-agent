@@ -492,11 +492,14 @@ export default function ClinicalHub() {
         try {
           const { data: rdData, error: rdError } = await supabase
             .from("referring_doctors")
-            .select("name, npi")
+            .select("name, last_name, npi")
             .order("name", { ascending: true });
           
           if (!rdError && rdData && rdData.length > 0) {
-            setDynamicReferringMds(rdData);
+            setDynamicReferringMds(rdData.map(d => ({
+              name: d.last_name ? `${d.name} ${d.last_name}`.trim() : d.name,
+              npi: d.npi || "1437503406"
+            })));
           } else {
             // Fallback: extract unique referring MDs from injury cases
             const mdsMap = new Map();
@@ -1024,12 +1027,16 @@ export default function ClinicalHub() {
       // Upsert Referring MD to referring_doctors table if defined
       if (newReferringDoc && newReferringDoc.trim()) {
         try {
+          const parts = newReferringDoc.trim().split(/\s+/);
+          const firstName = parts[0] || "";
+          const lastName = parts.slice(1).join(" ") || "Doctor";
           await supabase
             .from("referring_doctors")
             .upsert({
-              name: newReferringDoc.trim(),
+              name: firstName,
+              last_name: lastName,
               npi: newReferringDocNpi.trim() || "1437503406"
-            }, { onConflict: "name" });
+            }, { onConflict: "name,last_name" });
         } catch (doctorInsertErr) {
           console.error("Error upserting referring doctor to table:", doctorInsertErr);
         }
