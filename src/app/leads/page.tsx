@@ -454,6 +454,12 @@ export default function LeadsDashboard() {
             <User className="h-4 w-4" />
             Add Patient (No SMS)
           </button>
+           <a 
+            href="/cases"
+            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-100 text-sm font-semibold px-4 py-2 rounded-xl transition-all duration-200 flex items-center gap-1"
+          >
+            All Cases
+          </a>
           <a 
             href="/clinical-hub"
             className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all duration-200 flex items-center gap-1"

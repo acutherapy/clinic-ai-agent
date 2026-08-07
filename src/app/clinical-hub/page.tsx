@@ -447,7 +447,37 @@ export default function ClinicalHub() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setLeads(data || []);
+      const leadsList = data || [];
+      setLeads(leadsList);
+
+      // Auto select patient and case from URL parameter if present
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const urlPatientId = params.get("patientId");
+        if (urlPatientId) {
+          const matched = leadsList.find((l: any) => l.id === urlPatientId);
+          if (matched) {
+            handleSelectPatient(matched);
+            
+            const urlCaseId = params.get("caseId");
+            if (urlCaseId) {
+              const { data: casesData } = await supabase
+                .from("injury_cases")
+                .select("*")
+                .eq("patient_id", urlPatientId);
+              if (casesData && casesData.length > 0) {
+                setPatientCases(casesData);
+                const matchedCase = casesData.find((c: any) => c.id === urlCaseId);
+                if (matchedCase) {
+                  handleSelectCase(matchedCase);
+                } else {
+                  handleSelectCase(casesData[0]);
+                }
+              }
+            }
+          }
+        }
+      }
     } catch (err: any) {
       console.error("Error fetching patient leads:", err.message);
     } finally {
@@ -1288,6 +1318,12 @@ export default function ClinicalHub() {
         </div>
 
         <div className="flex items-center gap-3">
+          <a 
+            href="/cases"
+            className="flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100/80 text-emerald-800 text-sm font-semibold px-4 py-2 rounded-xl border border-emerald-100 transition-all duration-200"
+          >
+            All Cases
+          </a>
           <a 
             href="/leads"
             className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold px-4 py-2 rounded-xl transition-all duration-200"
