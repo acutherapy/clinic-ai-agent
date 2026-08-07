@@ -488,20 +488,47 @@ export default function ClinicalHub() {
         });
         setDynamicDoctors(Array.from(docsSet));
 
-        // Process unique referring MDs
-        const mdsMap = new Map();
-        data.forEach(c => {
-          if (c.referring_doctor) {
-            const name = c.referring_doctor.trim();
-            if (!mdsMap.has(name.toLowerCase())) {
-              mdsMap.set(name.toLowerCase(), {
-                name,
-                npi: c.referring_doctor_npi || "1437503406"
-              });
-            }
+        // Try querying referring_doctors lookup table first, fallback to scanning cases if it doesn't exist yet
+        try {
+          const { data: rdData, error: rdError } = await supabase
+            .from("referring_doctors")
+            .select("name, npi")
+            .order("name", { ascending: true });
+          
+          if (!rdError && rdData && rdData.length > 0) {
+            setDynamicReferringMds(rdData);
+          } else {
+            // Fallback: extract unique referring MDs from injury cases
+            const mdsMap = new Map();
+            data.forEach(c => {
+              if (c.referring_doctor) {
+                const name = c.referring_doctor.trim();
+                if (!mdsMap.has(name.toLowerCase())) {
+                  mdsMap.set(name.toLowerCase(), {
+                    name,
+                    npi: c.referring_doctor_npi || "1437503406"
+                  });
+                }
+              }
+            });
+            setDynamicReferringMds(Array.from(mdsMap.values()));
           }
-        });
-        setDynamicReferringMds(Array.from(mdsMap.values()));
+        } catch (rdTableErr) {
+          // Fallback on catch block
+          const mdsMap = new Map();
+          data.forEach(c => {
+            if (c.referring_doctor) {
+              const name = c.referring_doctor.trim();
+              if (!mdsMap.has(name.toLowerCase())) {
+                mdsMap.set(name.toLowerCase(), {
+                  name,
+                  npi: c.referring_doctor_npi || "1437503406"
+                });
+              }
+            }
+          });
+          setDynamicReferringMds(Array.from(mdsMap.values()));
+        }
       }
     } catch (err: any) {
       console.error("Error fetching dynamic metadata:", err.message);
@@ -994,6 +1021,20 @@ export default function ClinicalHub() {
         alert("🎉 Patient record updated and Injury Case successfully created!");
       }
       
+      // Upsert Referring MD to referring_doctors table if defined
+      if (newReferringDoc && newReferringDoc.trim()) {
+        try {
+          await supabase
+            .from("referring_doctors")
+            .upsert({
+              name: newReferringDoc.trim(),
+              npi: newReferringDocNpi.trim() || "1437503406"
+            }, { onConflict: "name" });
+        } catch (doctorInsertErr) {
+          console.error("Error upserting referring doctor to table:", doctorInsertErr);
+        }
+      }
+
       // Reset Case Form Details
       setNewCarrier("");
       setNewClaimNumber("");
