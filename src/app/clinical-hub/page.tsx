@@ -20,7 +20,8 @@ import {
   Lock,
   PlusCircle,
   FolderOpen,
-  X
+  X,
+  Edit
 } from "lucide-react";
 
 export default function ClinicalHub() {
@@ -36,6 +37,7 @@ export default function ClinicalHub() {
   const [patientCases, setPatientCases] = useState<any[]>([]);
   const [selectedCase, setSelectedCase] = useState<any>(null);
   const [showCreateCaseForm, setShowCreateCaseForm] = useState(false);
+  const [editingCaseId, setEditingCaseId] = useState<string | null>(null);
 
   // New Injury Case Form State - Patient Info (Updates Leads)
   const [newFirstName, setNewFirstName] = useState("");
@@ -790,7 +792,112 @@ export default function ClinicalHub() {
     setNewCaseIcds(prev => prev.filter(x => x.code !== code));
   }
 
-  // Submit/Create New Injury Case
+  // Reset form states for case creator
+  function resetCaseForm() {
+    setNewCaseType("auto_injury");
+    setNewCarrier("");
+    setNewClaimNumber("");
+    setNewPolicyHolder("");
+    setNewAdjusterName("");
+    setNewAdjusterPhone("");
+    setNewAdjusterFax("");
+    setNewClaimMailingAddress("");
+    setNewAttorneyName("");
+    setNewAttorneyPhone("");
+    setNewReferringDoc("");
+    setNewReferringDocNpi("");
+    setNewTreatingDoc("");
+    setNewDoi("");
+    setNewIntakeDate("");
+    setNewEndDate("");
+    setNewAuthVisits(12);
+    setNewFrequency("2 times per week for 6 weeks");
+    setNewCaseIcds([]);
+    setNewCaseSearchQuery("");
+    setNewCaseSearchIcds([]);
+    
+    // Patient details
+    if (selectedLead) {
+      const parts = (selectedLead.name || "").trim().split(/\s+/);
+      setNewFirstName(selectedLead.first_name || parts[0] || "");
+      setNewLastName(selectedLead.last_name || parts.slice(1).join(" ") || "");
+      setNewDob(selectedLead.dob || "");
+      setNewGender(selectedLead.gender || "his");
+      setNewSsn(selectedLead.ssn || "");
+      setNewAddress(selectedLead.address || "");
+      setNewCity(selectedLead.city || "");
+      setNewState(selectedLead.state || "");
+      setNewZip(selectedLead.zip || "");
+    }
+  }
+
+  // Populate form and switch to Edit case mode
+  async function handleEditCaseClick() {
+    if (!selectedLead || !selectedCase) return;
+    
+    setNewCaseType(selectedCase.case_type || "auto_injury");
+    setNewCarrier(selectedCase.insurance_carrier || "");
+    setNewClaimNumber(selectedCase.claim_number || "");
+    setNewPolicyHolder(selectedCase.policy_holder || "");
+    setNewAdjusterName(selectedCase.adjuster_name || "");
+    setNewAdjusterPhone(selectedCase.adjuster_phone || "");
+    setNewAdjusterFax(selectedCase.adjuster_fax || "");
+    setNewClaimMailingAddress(selectedCase.claim_mailing_address || "");
+    setNewAttorneyName(selectedCase.attorney_name || "");
+    setNewAttorneyPhone(selectedCase.attorney_phone || "");
+    setNewReferringDoc(selectedCase.referring_doctor || "");
+    setNewReferringDocNpi(selectedCase.referring_doctor_npi || "");
+    setNewTreatingDoc(selectedCase.treating_doctor || "");
+    setNewDoi(selectedCase.injury_date || "");
+    setNewIntakeDate(selectedCase.intake_date || "");
+    setNewEndDate(selectedCase.end_date || "");
+    setNewAuthVisits(selectedCase.authorized_visits || 12);
+    setNewFrequency(selectedCase.treatment_frequency || "2 times per week for 6 weeks");
+    
+    // Patient details
+    const parts = (selectedLead.name || "").trim().split(/\s+/);
+    setNewFirstName(selectedLead.first_name || parts[0] || "");
+    setNewLastName(selectedLead.last_name || parts.slice(1).join(" ") || "");
+    setNewDob(selectedLead.dob || "");
+    setNewGender(selectedLead.gender || "his");
+    setNewSsn(selectedLead.ssn || "");
+    setNewAddress(selectedLead.address || "");
+    setNewCity(selectedLead.city || "");
+    setNewState(selectedLead.state || "");
+    setNewZip(selectedLead.zip || "");
+    
+    // Query descriptions for active ICD-10 codes to populate newCaseIcds
+    setNewCaseIcds([]);
+    if (selectedCase.active_icd_codes && selectedCase.active_icd_codes.length > 0) {
+      try {
+        const codesNoDots = selectedCase.active_icd_codes.map((c: string) => c.replace(/\./g, "").toUpperCase());
+        const { data, error } = await supabase
+          .from("icd10_codes")
+          .select("code, code_with_separator, short_description")
+          .in("code", codesNoDots);
+        
+        if (!error && data) {
+          const mapped = selectedCase.active_icd_codes.map((code: string) => {
+            const cleanCode = code.replace(/\./g, "");
+            const matched = data.find(d => d.code === cleanCode);
+            return {
+              code: matched ? (matched.code_with_separator || matched.code) : code,
+              short_description: matched ? matched.short_description : "Pain/Injury symptom"
+            };
+          });
+          setNewCaseIcds(mapped);
+        }
+      } catch (err) {
+        console.error("Error loading edit case ICDs:", err);
+      }
+    }
+    
+    setEditingCaseId(selectedCase.id);
+    setShowCreateCaseForm(true);
+    setSoapOutput(null);
+  }
+
+  // Submit/Create or Update Injury Case
   async function handleCreateInjuryCase(e: React.FormEvent) {
     e.preventDefault();
     if (!selectedLead) return;
@@ -820,37 +927,72 @@ export default function ClinicalHub() {
 
       if (leadUpdateErr) throw leadUpdateErr;
 
-      // 2. Next, create the new injury case
-      const { data, error } = await supabase
-        .from("injury_cases")
-        .insert({
-          patient_id: selectedLead.id,
-          case_type: newCaseType,
-          insurance_carrier: newCarrier,
-          claim_number: newClaimNumber,
-          policy_holder: newPolicyHolder,
-          adjuster_name: newAdjusterName,
-          adjuster_phone: newAdjusterPhone,
-          adjuster_fax: newAdjusterFax,
-          claim_mailing_address: newClaimMailingAddress,
-          attorney_name: newAttorneyName,
-          attorney_phone: newAttorneyPhone,
-          referring_doctor: newReferringDoc,
-          referring_doctor_npi: newReferringDocNpi,
-          treating_doctor: newTreatingDoc,
-          injury_date: newDoi || null,
-          intake_date: newIntakeDate || null,
-          end_date: newEndDate || null,
-          authorized_visits: newAuthVisits,
-          treatment_frequency: newFrequency,
-          active_icd_codes: newCaseIcds.map(x => x.code)
-        })
-        .select()
-        .single();
+      let savedCase = null;
+      if (editingCaseId) {
+        // Edit existing case
+        const { data, error } = await supabase
+          .from("injury_cases")
+          .update({
+            case_type: newCaseType,
+            insurance_carrier: newCarrier,
+            claim_number: newClaimNumber,
+            policy_holder: newPolicyHolder,
+            adjuster_name: newAdjusterName,
+            adjuster_phone: newAdjusterPhone,
+            adjuster_fax: newAdjusterFax,
+            claim_mailing_address: newClaimMailingAddress,
+            attorney_name: newAttorneyName,
+            attorney_phone: newAttorneyPhone,
+            referring_doctor: newReferringDoc,
+            referring_doctor_npi: newReferringDocNpi,
+            treating_doctor: newTreatingDoc,
+            injury_date: newDoi || null,
+            intake_date: newIntakeDate || null,
+            end_date: newEndDate || null,
+            authorized_visits: newAuthVisits,
+            treatment_frequency: newFrequency,
+            active_icd_codes: newCaseIcds.map(x => x.code)
+          })
+          .eq("id", editingCaseId)
+          .select()
+          .single();
 
-      if (error) throw error;
+        if (error) throw error;
+        savedCase = data;
+        alert("🎉 Patient record and Injury Case successfully updated!");
+      } else {
+        // Create new injury case
+        const { data, error } = await supabase
+          .from("injury_cases")
+          .insert({
+            patient_id: selectedLead.id,
+            case_type: newCaseType,
+            insurance_carrier: newCarrier,
+            claim_number: newClaimNumber,
+            policy_holder: newPolicyHolder,
+            adjuster_name: newAdjusterName,
+            adjuster_phone: newAdjusterPhone,
+            adjuster_fax: newAdjusterFax,
+            claim_mailing_address: newClaimMailingAddress,
+            attorney_name: newAttorneyName,
+            attorney_phone: newAttorneyPhone,
+            referring_doctor: newReferringDoc,
+            referring_doctor_npi: newReferringDocNpi,
+            treating_doctor: newTreatingDoc,
+            injury_date: newDoi || null,
+            intake_date: newIntakeDate || null,
+            end_date: newEndDate || null,
+            authorized_visits: newAuthVisits,
+            treatment_frequency: newFrequency,
+            active_icd_codes: newCaseIcds.map(x => x.code)
+          })
+          .select()
+          .single();
 
-      alert("🎉 Patient record updated and Injury Case successfully created!");
+        if (error) throw error;
+        savedCase = data;
+        alert("🎉 Patient record updated and Injury Case successfully created!");
+      }
       
       // Reset Case Form Details
       setNewCarrier("");
@@ -870,13 +1012,32 @@ export default function ClinicalHub() {
       setNewEndDate("");
       setNewCaseIcds([]);
       setShowCreateCaseForm(false);
+      setEditingCaseId(null);
 
       // Refresh patient list and cases
       await fetchLeads();
-      await fetchPatientCases(selectedLead.id);
       await fetchDynamicMetadata();
+
+      const targetCaseId = savedCase ? savedCase.id : editingCaseId;
+      const { data: cases } = await supabase
+        .from("injury_cases")
+        .select("*")
+        .eq("patient_id", selectedLead.id)
+        .order("created_at", { ascending: false });
+
+      if (cases) {
+        setPatientCases(cases);
+        const match = cases.find(c => c.id === targetCaseId);
+        if (match) {
+          handleSelectCase(match);
+        } else if (cases.length > 0) {
+          handleSelectCase(cases[0]);
+        } else {
+          setSelectedCase(null);
+        }
+      }
     } catch (err: any) {
-      alert("Failed to create case: " + err.message);
+      alert("Failed to save case: " + err.message);
     } finally {
       setCreatingCase(false);
     }
@@ -1180,13 +1341,19 @@ export default function ClinicalHub() {
                   {/* Create New Case Action */}
                   <button 
                     onClick={() => {
+                      if (!showCreateCaseForm) {
+                        resetCaseForm();
+                        setEditingCaseId(null);
+                      } else {
+                        setEditingCaseId(null);
+                      }
                       setShowCreateCaseForm(!showCreateCaseForm);
                       setSoapOutput(null);
                     }}
                     className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-2 self-start sm:self-auto shadow-sm"
                   >
                     <PlusCircle className="h-4 w-4" />
-                    {showCreateCaseForm ? "Cancel New Case" : "New Injury Case"}
+                    {showCreateCaseForm ? (editingCaseId ? "Cancel Edit Case" : "Cancel New Case") : "New Injury Case"}
                   </button>
                 </div>
 
@@ -1238,10 +1405,13 @@ export default function ClinicalHub() {
                 <section className="bg-white p-6 rounded-3xl border border-rose-200/50 shadow-lg space-y-6 animate-in fade-in zoom-in-95 duration-200">
                   <div className="border-b border-slate-100 pb-3">
                     <h3 className="text-lg font-black text-rose-950 flex items-center gap-2">
-                      <Briefcase className="text-rose-500 h-5 w-5" /> Setup Auto/WC Clinical Injury Case
+                      <Briefcase className="text-rose-500 h-5 w-5" /> {editingCaseId ? "Edit Injury Case Profile" : "Setup Auto/WC Clinical Injury Case"}
                     </h3>
                     <p className="text-xs text-slate-500 mt-1">
-                      Configure the insurance claims, referring doctors, and fix the 3-4 active ICD-10 diagnosis codes.
+                      {editingCaseId 
+                        ? "Modify the active insurance claims, referring doctors, and active ICD-10 diagnosis codes for this case."
+                        : "Configure the insurance claims, referring doctors, and fix the 3-4 active ICD-10 diagnosis codes."
+                      }
                     </p>
                   </div>
 
@@ -1657,7 +1827,7 @@ export default function ClinicalHub() {
                         disabled={creatingCase}
                         className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-6 py-3 rounded-xl transition shadow-md shadow-emerald-600/10"
                       >
-                        {creatingCase ? "Creating Case..." : "Save and Activate Case"}
+                        {creatingCase ? "Saving Case..." : editingCaseId ? "Save Case Profile Changes" : "Save and Activate Case"}
                       </button>
                     </div>
                   </form>
@@ -1677,6 +1847,15 @@ export default function ClinicalHub() {
                           ? `🔒 Case Linked: ${selectedCase.insurance_carrier} (Claim: ${selectedCase.claim_number}) | Frequency: ${selectedCase.treatment_frequency}`
                           : "Non-insurance encounter. Choose diagnoses manually below."
                         }</p>
+                      {selectedCase && (
+                        <button
+                          onClick={handleEditCaseClick}
+                          className="mt-2 text-xs text-emerald-600 hover:text-emerald-700 font-extrabold flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100/80 px-3 py-1.5 rounded-xl transition duration-200"
+                        >
+                          <Edit className="h-3.5 w-3.5 text-emerald-600" />
+                          Edit Case Profile Info ✏️
+                        </button>
+                      )}
                     </div>
                     
                     {/* Dates */}
