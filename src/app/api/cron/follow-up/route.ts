@@ -40,7 +40,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, count: 0, message: "No leads to process" });
     }
 
-    const nowHonolulu = new Date(new Date().toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
+    // Honolulu is UTC-10, no Daylight Saving Time
+    const nowHonolulu = new Date(Date.now() - 10 * 60 * 60 * 1000);
     let processedCount = 0;
     const sentList: any[] = [];
 

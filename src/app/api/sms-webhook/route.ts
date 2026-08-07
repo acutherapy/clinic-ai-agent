@@ -721,8 +721,9 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
     } else if (bookingResult.intent === "RESCHEDULE_APPOINTMENT") {
       if (bookingResult.day && bookingResult.time) {
         try {
-          const nowHonolulu = new Date(new Date().toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
-          const nextDate = new Date(nowHonolulu);
+          // Honolulu is UTC-10, no Daylight Saving Time
+          const nowHonolulu = new Date(Date.now() - 10 * 60 * 60 * 1000);
+          const nextDate = new Date(nowHonolulu.getTime());
           const dayMap: Record<string, number> = {
             Sunday: 0,
             Monday: 1,

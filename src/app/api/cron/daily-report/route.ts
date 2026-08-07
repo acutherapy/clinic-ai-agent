@@ -38,11 +38,11 @@ export async function GET(req: NextRequest) {
       subscriptionStatus = `Error: ${subErr.message}`;
     }
 
-    // 1. Hawaii time calculations for "today"
-    const nowHonolulu = new Date(new Date().toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
-    const todayYyyy = nowHonolulu.getFullYear();
-    const todayMm = String(nowHonolulu.getMonth() + 1).padStart(2, "0");
-    const todayDd = String(nowHonolulu.getDate()).padStart(2, "0");
+    // 1. Hawaii time calculations for "today" (Honolulu is UTC-10, no Daylight Saving Time)
+    const nowHonolulu = new Date(Date.now() - 10 * 60 * 60 * 1000);
+    const todayYyyy = nowHonolulu.getUTCFullYear();
+    const todayMm = String(nowHonolulu.getUTCMonth() + 1).padStart(2, "0");
+    const todayDd = String(nowHonolulu.getUTCDate()).padStart(2, "0");
 
     const todayStart = `${todayYyyy}-${todayMm}-${todayDd}T00:00:00-10:00`;
     const todayEnd = `${todayYyyy}-${todayMm}-${todayDd}T23:59:59-10:00`;
@@ -52,11 +52,10 @@ export async function GET(req: NextRequest) {
     const endTime = todayEnd;
 
     // Hawaii time calculations for "tomorrow"
-    const tomorrow = new Date(nowHonolulu);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowYyyy = tomorrow.getFullYear();
-    const tomorrowMm = String(tomorrow.getMonth() + 1).padStart(2, "0");
-    const tomorrowDd = String(tomorrow.getDate()).padStart(2, "0");
+    const tomorrow = new Date(nowHonolulu.getTime() + 24 * 60 * 60 * 1000);
+    const tomorrowYyyy = tomorrow.getUTCFullYear();
+    const tomorrowMm = String(tomorrow.getUTCMonth() + 1).padStart(2, "0");
+    const tomorrowDd = String(tomorrow.getUTCDate()).padStart(2, "0");
 
     const tomorrowStart = `${tomorrowYyyy}-${tomorrowMm}-${tomorrowDd}T00:00:00-10:00`;
     const tomorrowEnd = `${tomorrowYyyy}-${tomorrowMm}-${tomorrowDd}T23:59:59-10:00`;

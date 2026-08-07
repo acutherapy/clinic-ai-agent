@@ -8,11 +8,11 @@ const DR_CAI_PHONE = "+18083083879";
 
 export async function GET(req: NextRequest) {
   try {
-    // 1. Hawaii time calculations
-    const nowHonolulu = new Date(new Date().toLocaleString("en-US", { timeZone: "Pacific/Honolulu" }));
-    const dayOfWeek = nowHonolulu.getDay(); // 0 = Sunday, 1 = Monday, 2 = Tuesday, 3 = Wednesday, 4 = Thursday...
+    // 1. Hawaii time calculations (Honolulu is UTC-10, no Daylight Saving Time)
+    const nowHonolulu = new Date(Date.now() - 10 * 60 * 60 * 1000);
+    const dayOfWeek = nowHonolulu.getUTCDay(); // 0 = Sunday, 1 = Monday, 2 = Tuesday, 3 = Wednesday, 4 = Thursday...
     
-    console.log(`[Therapist Reminder Cron] Running at Honolulu time: ${nowHonolulu.toLocaleString()} (Day of week: ${dayOfWeek})`);
+    console.log(`[Therapist Reminder Cron] Running at Honolulu time: ${nowHonolulu.toUTCString()} (Day of week: ${dayOfWeek})`);
 
     // Determine target therapist and schedule based on day of week
     // Sunday (0) and Monday (1) -> Aya
@@ -36,11 +36,10 @@ export async function GET(req: NextRequest) {
     }
 
     // 2. Fetch tomorrow's Google Calendar appointments
-    const tomorrow = new Date(nowHonolulu);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowYyyy = tomorrow.getFullYear();
-    const tomorrowMm = String(tomorrow.getMonth() + 1).padStart(2, "0");
-    const tomorrowDd = String(tomorrow.getDate()).padStart(2, "0");
+    const tomorrow = new Date(nowHonolulu.getTime() + 24 * 60 * 60 * 1000);
+    const tomorrowYyyy = tomorrow.getUTCFullYear();
+    const tomorrowMm = String(tomorrow.getUTCMonth() + 1).padStart(2, "0");
+    const tomorrowDd = String(tomorrow.getUTCDate()).padStart(2, "0");
 
     const tomorrowStart = `${tomorrowYyyy}-${tomorrowMm}-${tomorrowDd}T00:00:00-10:00`;
     const tomorrowEnd = `${tomorrowYyyy}-${tomorrowMm}-${tomorrowDd}T23:59:59-10:00`;
