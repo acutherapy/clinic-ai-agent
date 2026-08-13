@@ -81,22 +81,57 @@ export async function handleBossConversation(bossMessage: string, bossPhone: str
     // Sort events chronologically
     allEvents.sort((a, b) => a.start.getTime() - b.start.getTime());
 
-    // Format events for prompt context
-    let formattedSchedule = "Schedule (Today & Tomorrow):\n";
-    if (allEvents.length === 0) {
-      formattedSchedule += "No appointments found.\n";
-    } else {
-      allEvents.forEach(e => {
-        const localTime = e.start.toLocaleString("en-US", {
-          timeZone: "Pacific/Honolulu",
-          month: "short",
-          day: "numeric",
-          hour: "numeric",
-          minute: "2-digit",
-        });
-        formattedSchedule += `- [${e.clinic}] ${localTime}: "${e.summary}"\n`;
+    // Programmatic filtering for VA/Veteran and other event categories
+    const isVAEvent = (summary: string) => {
+      const lower = summary.toLowerCase();
+      return lower.includes("veteran") || lower.includes(" va ") || lower.includes("(va)") || lower.startsWith("va ") || lower.endsWith(" va");
+    };
+
+    const formatEventLocalTime = (dateObj: Date) => {
+      return dateObj.toLocaleString("en-US", {
+        timeZone: "Pacific/Honolulu",
+        hour: "numeric",
+        minute: "2-digit",
       });
-    }
+    };
+
+    // Filter by day matching today/tomorrow using local HST date string comparison
+    const filterByDate = (dateObj: Date, targetDateStr: string) => {
+      const hstStr = dateObj.toLocaleString("en-US", {
+        timeZone: "Pacific/Honolulu",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }); // MM/DD/YYYY
+      const [m, d, y] = hstStr.split("/");
+      const formattedHstStr = `${y}-${m}-${d}`;
+      return formattedHstStr === targetDateStr;
+    };
+
+    const todayEvents = allEvents.filter(e => filterByDate(e.start, todayStr));
+    const tomorrowEvents = allEvents.filter(e => filterByDate(e.start, tomorrowStr));
+
+    const todayVA = todayEvents.filter(e => isVAEvent(e.summary));
+    const todayOther = todayEvents.filter(e => !isVAEvent(e.summary));
+
+    const tomorrowVA = tomorrowEvents.filter(e => isVAEvent(e.summary));
+    const tomorrowOther = tomorrowEvents.filter(e => !isVAEvent(e.summary));
+
+    let statsAndScheduleContext = `
+### Programmatic Calendar Analysis:
+
+#### TODAY (VA/Veteran Appointments):
+${todayVA.map(e => `- ${formatEventLocalTime(e.start)}: "${e.summary}" (${e.clinic})`).join("\n") || "No VA appointments scheduled today."}
+
+#### TODAY (Other Appointments/Breaks/Promotions):
+${todayOther.map(e => `- ${formatEventLocalTime(e.start)}: "${e.summary}" (${e.clinic})`).join("\n") || "No other appointments scheduled today."}
+
+#### TOMORROW (VA/Veteran Appointments):
+${tomorrowVA.map(e => `- ${formatEventLocalTime(e.start)}: "${e.summary}" (${e.clinic})`).join("\n") || "No VA appointments scheduled tomorrow."}
+
+#### TOMORROW (Other Appointments/Breaks/Promotions):
+${tomorrowOther.map(e => `- ${formatEventLocalTime(e.start)}: "${e.summary}" (${e.clinic})`).join("\n") || "No other appointments scheduled tomorrow."}
+`;
 
     // 2. Fetch database counts & stats in parallel
     const [leadsCount, activeCasesCount, newLeadsCount] = await Promise.all([
@@ -114,9 +149,6 @@ export async function handleBossConversation(bossMessage: string, bossPhone: str
       .limit(8);
 
     const historyArray = (dbHistory || []).reverse();
-    const formattedHistory = historyArray
-      .map((h) => `${h.role.toUpperCase()}: ${h.message}`)
-      .join("\n");
 
     const systemPrompt = `
 You are Emma, the professional, elite AI Clinic Administrator and Front Desk Coordinator at AcuTherapy Clinics.
@@ -133,8 +165,7 @@ You are communicating directly with your boss, the clinic owner, Dr. David Cai.
 - Active Injury Cases (工伤车祸病案): ${activeCasesCount}
 - New Website Leads (新注册需要跟进线索): ${newLeadsCount} (Total Leads: ${leadsCount})
 
-### Appointments Schedule (Today and Tomorrow):
-${formattedSchedule}
+${statsAndScheduleContext}
 
 ### Your Capabilities (Tell him if he asks):
 - You can summarize active schedules, check specific dates for appointments, report new lead counts, list active injury cases, or help draft patient SMS.
@@ -142,6 +173,7 @@ ${formattedSchedule}
 
 ### Instructions:
 - Answer Dr. Cai's request using the real-time context above.
+- Ensure you read the "Programmatic Calendar Analysis" section very carefully. Double check the list under "TODAY (VA/Veteran Appointments)" or "TOMORROW (VA/Veteran Appointments)" to make sure you do not miss or omit any names in your reply when he asks for VA counts/lists.
 - If he asks you to summarize schedule or attendance, group the events logically by clinic (Liliha vs Aiea) or date (Today vs Tomorrow) and present a clean report.
 - Do not make up any appointments or metrics. If you don't know something, tell him you will check on it or advise him to review the Cases Dashboard.
 `;
