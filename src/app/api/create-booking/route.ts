@@ -142,10 +142,31 @@ const response =
 const result =
   await response.json();
 
+// Direct string parsing to avoid any timezone/locale conversion issues
+const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const parts = startTime.split("T")[0].split("-");
+const timePart = startTime.split("T")[1].split(":")[0];
+const monthIdx = parseInt(parts[1]) - 1;
+const dayNum = parseInt(parts[2]);
+const hourNum = parseInt(timePart);
+
+const monthName = monthNames[monthIdx];
+let suffix = "th";
+if (dayNum === 1 || dayNum === 21 || dayNum === 31) suffix = "st";
+else if (dayNum === 2 || dayNum === 22) suffix = "nd";
+else if (dayNum === 3 || dayNum === 23) suffix = "rd";
+
+const dayStr = `${monthName} ${dayNum}${suffix}`;
+const ampm = hourNum >= 12 ? "PM" : "AM";
+const displayHour = hourNum % 12 === 0 ? 12 : hourNum % 12;
+const timeStr = `${displayHour}:00 ${ampm}`;
+
 return NextResponse.json({
   success: true,
   booking: result,
   serviceType,
+  dayStr,
+  timeStr,
 });
 
 } catch (err: any) {

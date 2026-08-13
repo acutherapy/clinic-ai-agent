@@ -686,6 +686,8 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
               action: "BOOK",
               appointmentTime: `${bookingResult.day} at ${bookingResult.time}`,
               serviceType: createResult.serviceType,
+              dayStr: createResult.dayStr,
+              timeStr: createResult.timeStr,
             };
 
             // Update lead status in leads table to BOOKED if they are a lead
@@ -789,6 +791,8 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
               success: true,
               action: "RESCHEDULE",
               appointmentTime: `${bookingResult.day} at ${bookingResult.time}`,
+              dayStr: rescheduleResult.dayStr,
+              timeStr: rescheduleResult.timeStr,
             };
           } else {
             actionResult = {
@@ -948,19 +952,52 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
     // 7. Fetch conversation history for assistant reply generation context
     const conversationHistory = phone ? await getConversationHistory(phone, 6) : [];
 
-    // 8. Generate a warm, human-like, database-backed response via Emma
-    const replyMessage = await generateEmmaResponse({
-      patientMessage: message,
-      patientName,
-      conversationHistory,
-      intent: bookingResult.intent,
-      language: bookingResult.language || "English",
-      actionResult,
-      kbAnswer,
-      kbUrl,
-      availableSlots,
-      phone,
-    });
+    // 8. Generate response (use hardcoded template for successful booking/rescheduling to match the user's specific layout)
+    let replyMessage = "";
+    const isAiea = (existingLeadCheck?.location || "Liliha").toLowerCase().includes("aiea");
+
+    if (actionResult && actionResult.success && (actionResult.action === "BOOK" || actionResult.action === "RESCHEDULE")) {
+      const isChinese = (bookingResult.language || "English").toLowerCase().includes("chinese");
+      const dayStr = actionResult.dayStr || bookingResult.day || "";
+      const timeStr = actionResult.timeStr || bookingResult.time || "";
+
+      if (isChinese) {
+        const greeting = patientName && patientName !== "Unknown" && patientName !== "Patient"
+          ? `您好 ${patientName}，`
+          : "您好，";
+        const actionText = actionResult.action === "RESCHEDULE" ? "您的预约更改已确认。" : "您的预约已确认。";
+        const clinicName = isAiea ? "AcuTherapy Clinic (Aiea 分店)" : "AcuTherapy Clinic (Liliha 总店)";
+        const address = isAiea
+          ? "98-211 Pali Momi St Suite 604\nAiea, HI 96701"
+          : "1650 Liliha St, Suite 208\nHonolulu, HI 96817";
+
+        replyMessage = `${greeting}\n\n${actionText}\n\n📅 ${dayStr}\n⏰ ${timeStr}\n\n📍 ${clinicName}\n${address}\n\n请提前 10 分钟到达诊所办理登记。\n\n如果您有任何问题或需要更改时间，请致电或发短信至 808-528-7177。\n\n我们期待您的光临！`;
+      } else {
+        const greeting = patientName && patientName !== "Unknown" && patientName !== "Patient"
+          ? `Aloha ${patientName},`
+          : "Aloha,";
+        const actionText = actionResult.action === "RESCHEDULE" ? "Your appointment change has been confirmed." : "Your appointment has been confirmed.";
+        const clinicName = isAiea ? "AcuTherapy Clinic" : "AcuTherapy Clinic";
+        const address = isAiea
+          ? "98-211 Pali Momi St Suite 604\nAiea, HI 96701"
+          : "1650 Liliha St, Suite 208\nHonolulu, HI 96817";
+
+        replyMessage = `${greeting}\n\n${actionText}\n\n📅 ${dayStr}\n⏰ ${timeStr}\n\n📍 ${clinicName}\n${address}\n\nPlease arrive 10 minutes early for check-in.\n\nIf you have any questions or need to reschedule, please call or text 808-528-7177.\n\nWe look forward to seeing you!`;
+      }
+    } else {
+      replyMessage = await generateEmmaResponse({
+        patientMessage: message,
+        patientName,
+        conversationHistory,
+        intent: bookingResult.intent,
+        language: bookingResult.language || "English",
+        actionResult,
+        kbAnswer,
+        kbUrl,
+        availableSlots,
+        phone,
+      });
+    }
 
     // 9. Customise JaneApp links and apply Medical Safety Guardrails (JaneApp customization temporarily disabled per user request)
     let finalReply = replyMessage;
