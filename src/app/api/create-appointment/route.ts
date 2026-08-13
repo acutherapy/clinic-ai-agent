@@ -23,39 +23,31 @@ export async function POST(
       phone,
       startTime,
       serviceType,
+      location = "Liliha Clinic",
     } = body;
 
-    const start =
-      new Date(startTime);
+    const start = new Date(startTime);
+    const end = new Date(start);
+    end.setHours(end.getHours() + 1);
 
-    const end =
-      new Date(start);
+    const isAiea = location.toLowerCase().includes("aiea");
+    const summarySuffix = isAiea ? " (Aiea)" : "";
 
-    end.setHours(
-      end.getHours() + 1
-    );
-
-    const event =
-      await calendar.events.insert({
-        calendarId:
-          CALENDAR_ID,
-        requestBody: {
-          summary:
-            `${serviceType} - ${patientName} (${phone})`,
-          start: {
-            dateTime:
-              start.toISOString(),
-            timeZone:
-              "Pacific/Honolulu",
-          },
-          end: {
-            dateTime:
-              end.toISOString(),
-            timeZone:
-              "Pacific/Honolulu",
-          },
+    const event = await calendar.events.insert({
+      calendarId: CALENDAR_ID,
+      requestBody: {
+        summary: `${serviceType} - ${patientName} (${phone})${summarySuffix}`,
+        location: isAiea ? "Aiea Clinic" : "Liliha Clinic",
+        start: {
+          dateTime: start.toISOString(),
+          timeZone: "Pacific/Honolulu",
         },
-      });
+        end: {
+          dateTime: end.toISOString(),
+          timeZone: "Pacific/Honolulu",
+        },
+      },
+    });
 
     await supabase
       .from(

@@ -21,6 +21,7 @@ export async function POST(
     const {
       phone,
       startTime,
+      location = "Liliha Clinic",
     } = body;
 
     const { data: lastAppointment } =
@@ -59,6 +60,7 @@ export async function POST(
             startTime,
             serviceType:
               lastAppointment.service_type,
+            location,
           }),
         }
       );
@@ -89,6 +91,10 @@ export async function POST(
       end.getHours() + 1
     );
 
+    const isAiea = location.toLowerCase().includes("aiea");
+    const summaryBase = (lastAppointment.service_type || "Acupuncture") + " - " + (lastAppointment.patient_name || "Patient") + ` (${phone})`;
+    const updatedSummary = summaryBase + (isAiea ? " (Aiea)" : "");
+
     await calendar.events.patch({
       calendarId:
         CALENDAR_ID,
@@ -97,6 +103,8 @@ export async function POST(
         lastAppointment.calendar_event_id,
 
       requestBody: {
+        summary: updatedSummary,
+        location: isAiea ? "Aiea Clinic" : "Liliha Clinic",
         start: {
           dateTime:
             start.toISOString(),

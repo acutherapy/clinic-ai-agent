@@ -12,6 +12,7 @@ const {
   phone,
   day,
   time,
+  location = "Liliha Clinic",
 } = body;
 
 // Honolulu is UTC-10, no Daylight Saving Time
@@ -96,6 +97,7 @@ const capacityResponse =
       body: JSON.stringify({
         startTime,
         serviceType,
+        location,
       }),
     }
   );
@@ -132,6 +134,7 @@ const response =
         phone,
         startTime,
         serviceType,
+        location,
       }),
     }
   );

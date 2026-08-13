@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { calendar } from "@/lib/google";
 
-const HOURS_WEEKDAY = [9, 10, 11, 12];
-const HOURS_SATURDAY = [9, 10, 11];
+const AI_CALENDAR_ID =
+  "46d7671d8624d3f9f0c685943921309a7d1801a2ae584906b21ea114282206ff@group.calendar.google.com";
+
+const LILIHA_CALENDAR_ID =
+  "84okuq4catkgth1s7p2fcdb831n5pj1e@import.calendar.google.com";
+
+const AIEA_CALENDAR_ID =
+  "0khh21tcrskt582q8v2g8pl8c85st3el@import.calendar.google.com";
 
 const DAY_MAP: Record<string, number> = {
   Sunday: 0,
@@ -14,12 +20,6 @@ const DAY_MAP: Record<string, number> = {
   Saturday: 6,
 };
 
-const AI_CALENDAR_ID =
-  "46d7671d8624d3f9f0c685943921309a7d1801a2ae584906b21ea114282206ff@group.calendar.google.com";
-
-const CLINIC_CALENDAR_ID =
-  "84okuq4catkgth1s7p2fcdb831n5pj1e@import.calendar.google.com";
-
 type Candidate = {
   text: string;
   currentCount: number;
@@ -28,22 +28,44 @@ type Candidate = {
   startTime: string;
 };
 
+// Clinic hours rules
+const CLINIC_RULES = {
+  liliha: {
+    hoursWeekday: [9, 10, 11, 12],
+    hoursSaturday: [9, 10, 11],
+    businessDays: [1, 2, 3, 4, 5, 6], // Mon-Sat
+    acupunctureCapacity: 2,
+  },
+  aiea: {
+    hoursWeekday: [9, 10, 11, 12, 13, 14, 15, 16], // 9am to 5pm (last slot 4pm)
+    hoursSaturday: [9, 10, 11, 12, 13, 14, 15, 16],
+    businessDays: [2, 3, 4, 5, 6], // Tue-Sat
+    capacity: 1, // Max 1 customer per hour across all treatments
+  }
+};
+
 export async function GET(req: NextRequest) {
   try {
     const requestedDay = req.nextUrl.searchParams.get("day");
+    const location = (req.nextUrl.searchParams.get("location") || "liliha").toLowerCase();
+    const isAiea = location.includes("aiea");
+    const rules = isAiea ? CLINIC_RULES.aiea : CLINIC_RULES.liliha;
+
     const candidates: Candidate[] = [];
 
-    // Get current time in Honolulu (HST) to use as the local base date
+    // Get current time in Honolulu (HST) to use as local base date
     const honoluluTimeStr = new Date().toLocaleString("en-US", {
       timeZone: "Pacific/Honolulu",
     });
     const nowHonolulu = new Date(honoluluTimeStr);
 
-    // Fetch calendar events in absolute UTC for the next 47 days in exactly 2 batch API calls
+    // Fetch calendar events in absolute UTC for the next 47 days
     const timeMin = new Date().toISOString();
     const timeMax = new Date(Date.now() + 47 * 24 * 60 * 60 * 1000).toISOString();
 
-    console.log("Batch fetching calendar events from", timeMin, "to", timeMax);
+    const targetClinicCalendarId = isAiea ? AIEA_CALENDAR_ID : LILIHA_CALENDAR_ID;
+
+    console.log(`[Find Slots] Fetching events for Clinic: ${isAiea ? "Aiea" : "Liliha"} from ${timeMin} to ${timeMax}`);
 
     const [aiResult, clinicResult] = await Promise.all([
       calendar.events.list({
@@ -54,7 +76,7 @@ export async function GET(req: NextRequest) {
         maxResults: 1000,
       }),
       calendar.events.list({
-        calendarId: CLINIC_CALENDAR_ID,
+        calendarId: targetClinicCalendarId,
         timeMin,
         timeMax,
         singleEvents: true,
@@ -62,39 +84,63 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
-    const allEvents = [
-      ...(aiResult.data.items || []),
-      ...(clinicResult.data.items || []),
-    ];
+    const rawAiEvents = aiResult.data.items || [];
+    const rawClinicEvents = clinicResult.data.items || [];
 
-    // Local function to evaluate capacity on the fetched event pool
-    const checkAcupunctureCapacityLocal = (slotStart: Date, slotEnd: Date) => {
-      const sameTypeEvents = allEvents.filter((event) => {
-        const title = (event.summary || "").toLowerCase();
-        if (!title.includes("acupuncture")) {
-          return false;
-        }
+    // Filter helper to determine if an event belongs to Aiea
+    const isAieaEvent = (event: any) => {
+      const title = (event.summary || "").toLowerCase();
+      const loc = (event.location || "").toLowerCase();
+      const desc = (event.description || "").toLowerCase();
+      return title.includes("aiea") || loc.includes("aiea") || desc.includes("aiea");
+    };
 
+    // Filter relevant events for the selected clinic
+    let relevantEvents: any[] = [];
+    if (isAiea) {
+      // For Aiea, keep all events on the Aiea clinic calendar, plus Aiea-flagged events on the AI calendar
+      const relevantAi = rawAiEvents.filter(isAieaEvent);
+      relevantEvents = [...rawClinicEvents, ...relevantAi];
+    } else {
+      // For Liliha, keep all events on Liliha clinic calendar, plus non-Aiea events on the AI calendar
+      const relevantAi = rawAiEvents.filter(e => !isAieaEvent(e));
+      relevantEvents = [...rawClinicEvents, ...relevantAi];
+    }
+
+    // Capacity evaluator function for Aiea vs Liliha
+    const checkCapacityLocal = (slotStart: Date, slotEnd: Date) => {
+      const overlappingEvents = relevantEvents.filter((event) => {
         const eventStart = new Date(event.start?.dateTime || event.start?.date || "");
         const eventEnd = new Date(event.end?.dateTime || event.end?.date || "");
-
         // Overlap formula: eventStart < slotEnd and eventEnd > slotStart
         return eventStart < slotEnd && eventEnd > slotStart;
       });
 
-      return {
-        available: sameTypeEvents.length < 2, // Acupuncture max capacity is 2
-        currentCount: sameTypeEvents.length,
-      };
+      if (isAiea) {
+        // Aiea clinic limit is 1 client across all services
+        return {
+          available: overlappingEvents.length < CLINIC_RULES.aiea.capacity,
+          currentCount: overlappingEvents.length,
+        };
+      } else {
+        // Liliha clinic checks acupuncture capacity (max 2)
+        const acupunctureEvents = overlappingEvents.filter(event => {
+          const title = (event.summary || "").toLowerCase();
+          return title.includes("acupuncture");
+        });
+        return {
+          available: acupunctureEvents.length < CLINIC_RULES.liliha.acupunctureCapacity,
+          currentCount: acupunctureEvents.length,
+        };
+      }
     };
 
     // Iterate through the 45-day window starting from tomorrow
     for (let d = 1; d <= 45; d++) {
-      const day = new Date(nowHonolulu);
-      day.setDate(day.getDate() + d);
+      const day = new Date(nowHonolulu.getTime() + d * 24 * 60 * 60 * 1000);
+      const dayOfWeek = day.getUTCDay(); // Safe UTC-based day value since shifted
 
-      const dayOfWeek = day.getDay();
-
+      // If a specific day was requested (e.g. "Monday"), skip other days
       if (requestedDay) {
         const targetDay = DAY_MAP[requestedDay];
         if (dayOfWeek !== targetDay) {
@@ -102,23 +148,24 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      if (dayOfWeek === 0) {
-        continue; // Clinic is closed on Sundays
+      // Check if this day is a business day for the clinic
+      if (!rules.businessDays.includes(dayOfWeek)) {
+        continue;
       }
 
-      const hours = dayOfWeek === 6 ? HOURS_SATURDAY : HOURS_WEEKDAY;
+      const hours = dayOfWeek === 6 ? rules.hoursSaturday : rules.hoursWeekday;
 
       for (const hour of hours) {
-        const yyyy = day.getFullYear();
-        const mm = String(day.getMonth() + 1).padStart(2, "0");
-        const dd = String(day.getDate()).padStart(2, "0");
+        const yyyy = day.getUTCFullYear();
+        const mm = String(day.getUTCMonth() + 1).padStart(2, "0");
+        const dd = String(day.getUTCDate()).padStart(2, "0");
         const hh = String(hour).padStart(2, "0");
 
         const startTime = `${yyyy}-${mm}-${dd}T${hh}:00:00-10:00`;
         const slotStart = new Date(startTime);
         const slotEnd = new Date(slotStart.getTime() + 60 * 60 * 1000);
 
-        const capResult = checkAcupunctureCapacityLocal(slotStart, slotEnd);
+        const capResult = checkCapacityLocal(slotStart, slotEnd);
 
         if (capResult.available) {
           const display = slotStart.toLocaleString("en-US", {
@@ -156,7 +203,6 @@ export async function GET(req: NextRequest) {
       const sameDay = candidates.filter((c) => c.dateKey === firstDate);
       sameDay.sort((a, b) => a.hour - b.hour);
 
-      // Return at most 2 slots on that specific day (guaranteed different hours since hours are unique on same day)
       return NextResponse.json({
         slots: sameDay.slice(0, 2).map((s) => s.text),
       });
@@ -169,7 +215,7 @@ export async function GET(req: NextRequest) {
 
     const selected: Candidate[] = [];
 
-    // First pass: try to get up to 8 slots that are at least 2 days apart and different hours from the preceding one
+    // First pass: try to get up to 8 slots that are at least 2 days apart
     for (const candidate of candidates) {
       if (selected.length === 0) {
         selected.push(candidate);
@@ -192,21 +238,18 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Second pass: if we have fewer than 6 slots, try to add other slots that are at least 1 day apart and different hour from the preceding one
+    // Second pass: if we have fewer than 6 slots, try to add other slots that are at least 1 day apart
     if (selected.length < 6) {
       for (const candidate of candidates) {
-        // Skip if already selected
         if (selected.some((s) => s.startTime === candidate.startTime)) {
           continue;
         }
 
-        // Find where this candidate would fit chronologically
         const temp = [...selected, candidate].sort(
           (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
         );
         const idx = temp.indexOf(candidate);
 
-        // Check compatibility with preceding candidate (if any)
         let compatible = true;
         if (idx > 0) {
           const prev = temp[idx - 1];
@@ -220,7 +263,6 @@ export async function GET(req: NextRequest) {
           }
         }
 
-        // Check compatibility with succeeding candidate (if any)
         if (idx < temp.length - 1) {
           const next = temp[idx + 1];
           const d1 = new Date(candidate.dateKey);
@@ -235,7 +277,6 @@ export async function GET(req: NextRequest) {
 
         if (compatible) {
           selected.push(candidate);
-          // Re-sort selected chronologically
           selected.sort(
             (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
           );

@@ -659,6 +659,9 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
     if (bookingResult.intent === "BOOK_APPOINTMENT") {
       if (bookingResult.day && bookingResult.time) {
         try {
+          const leadLocation = (existingLeadCheck?.location || "Liliha").toLowerCase();
+          const targetLocation = leadLocation.includes("aiea") ? "Aiea Clinic" : "Liliha Clinic";
+
           const createResponse = await fetch(
             `${process.env.NEXT_PUBLIC_SITE_URL}/api/create-booking`,
             {
@@ -671,6 +674,7 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
                 phone,
                 day: bookingResult.day,
                 time: bookingResult.time,
+                location: targetLocation,
               }),
             }
           );
@@ -761,6 +765,9 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
             startTime = `${newYyyy}-${newMm}-${newDd}T${hh}:00:00-10:00`;
           }
 
+          const leadLocation = (existingLeadCheck?.location || "Liliha").toLowerCase();
+          const targetLocation = leadLocation.includes("aiea") ? "Aiea Clinic" : "Liliha Clinic";
+
           const rescheduleResponse = await fetch(
             `${process.env.NEXT_PUBLIC_SITE_URL}/api/reschedule-appointment`,
             {
@@ -771,6 +778,7 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
               body: JSON.stringify({
                 phone,
                 startTime,
+                location: targetLocation,
               }),
             }
           );
@@ -850,9 +858,12 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
     let availableSlots: string[] = [];
     if (needsSlots) {
       try {
+        const leadLocation = (existingLeadCheck?.location || "Liliha").toLowerCase();
+        const locationParam = leadLocation.includes("aiea") ? "aiea" : "liliha";
+
         const slotsUrl = bookingResult.day
-          ? `${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots?day=${bookingResult.day}`
-          : `${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots`;
+          ? `${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots?day=${bookingResult.day}&location=${locationParam}`
+          : `${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots?location=${locationParam}`;
         
         const slotsResponse = await fetch(slotsUrl);
         const slotsResult = await slotsResponse.json();
