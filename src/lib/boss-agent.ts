@@ -63,10 +63,12 @@ export async function handleBossConversation(bossMessage: string, bossPhone: str
       items.forEach(item => {
         const start = item.start?.dateTime || item.start?.date || "";
         const summary = item.summary || "No Title";
+        const location = item.location || "";
         if (start) {
           allEvents.push({
             clinic: clinicName,
             summary,
+            location,
             start: new Date(start),
             startStr: start,
           });
@@ -81,7 +83,7 @@ export async function handleBossConversation(bossMessage: string, bossPhone: str
     // Sort events chronologically
     allEvents.sort((a, b) => a.start.getTime() - b.start.getTime());
 
-    // Programmatic filtering for VA/Veteran and other event categories
+    // Programmatic filtering for VA/Veteran
     const isVAEvent = (summary: string) => {
       const lower = summary.toLowerCase();
       return lower.includes("veteran") || lower.includes(" va ") || lower.includes("(va)") || lower.startsWith("va ") || lower.endsWith(" va");
@@ -102,35 +104,51 @@ export async function handleBossConversation(bossMessage: string, bossPhone: str
         year: "numeric",
         month: "2-digit",
         day: "2-digit",
-      }); // MM/DD/YYYY
+      });
       const [m, d, y] = hstStr.split("/");
       const formattedHstStr = `${y}-${m}-${d}`;
       return formattedHstStr === targetDateStr;
     };
 
-    const todayEvents = allEvents.filter(e => filterByDate(e.start, todayStr));
-    const tomorrowEvents = allEvents.filter(e => filterByDate(e.start, tomorrowStr));
+    // Resolve which clinic an event belongs to (Aiea vs Liliha)
+    const getResolvedClinic = (e: any) => {
+      if (e.clinic === "Aiea Clinic") return "Aiea";
+      if (e.clinic === "Liliha Clinic") return "Liliha";
+      // AI Bookings - check location field, summary, and description
+      const loc = (e.location || "").toLowerCase();
+      const title = (e.summary || "").toLowerCase();
+      return (loc.includes("aiea") || title.includes("aiea")) ? "Aiea" : "Liliha";
+    };
 
-    const todayVA = todayEvents.filter(e => isVAEvent(e.summary));
-    const todayOther = todayEvents.filter(e => !isVAEvent(e.summary));
+    const lilihaAll = allEvents.filter(e => getResolvedClinic(e) === "Liliha");
+    const aieaAll = allEvents.filter(e => getResolvedClinic(e) === "Aiea");
 
-    const tomorrowVA = tomorrowEvents.filter(e => isVAEvent(e.summary));
-    const tomorrowOther = tomorrowEvents.filter(e => !isVAEvent(e.summary));
+    const lilihaToday = lilihaAll.filter(e => filterByDate(e.start, todayStr));
+    const lilihaTomorrow = lilihaAll.filter(e => filterByDate(e.start, tomorrowStr));
+
+    const aieaToday = aieaAll.filter(e => filterByDate(e.start, todayStr));
+    const aieaTomorrow = aieaAll.filter(e => filterByDate(e.start, tomorrowStr));
+
+    const formatEventLine = (e: any) => {
+      const timeStr = formatEventLocalTime(e.start);
+      const isVA = isVAEvent(e.summary) ? " [VA]" : "";
+      return `- ${timeStr}: "${e.summary}"${isVA}`;
+    };
 
     let statsAndScheduleContext = `
 ### Programmatic Calendar Analysis:
 
-#### TODAY (VA/Veteran Appointments):
-${todayVA.map(e => `- ${formatEventLocalTime(e.start)}: "${e.summary}" (${e.clinic})`).join("\n") || "No VA appointments scheduled today."}
+#### LILIHA CLINIC (Liliha 总店) - TODAY:
+${lilihaToday.map(formatEventLine).join("\n") || "  No appointments scheduled today."}
 
-#### TODAY (Other Appointments/Breaks/Promotions):
-${todayOther.map(e => `- ${formatEventLocalTime(e.start)}: "${e.summary}" (${e.clinic})`).join("\n") || "No other appointments scheduled today."}
+#### LILIHA CLINIC (Liliha 总店) - TOMORROW:
+${lilihaTomorrow.map(formatEventLine).join("\n") || "  No appointments scheduled tomorrow."}
 
-#### TOMORROW (VA/Veteran Appointments):
-${tomorrowVA.map(e => `- ${formatEventLocalTime(e.start)}: "${e.summary}" (${e.clinic})`).join("\n") || "No VA appointments scheduled tomorrow."}
+#### AIEA CLINIC (Aiea 分店) - TODAY:
+${aieaToday.map(formatEventLine).join("\n") || "  No appointments scheduled today."}
 
-#### TOMORROW (Other Appointments/Breaks/Promotions):
-${tomorrowOther.map(e => `- ${formatEventLocalTime(e.start)}: "${e.summary}" (${e.clinic})`).join("\n") || "No other appointments scheduled tomorrow."}
+#### AIEA CLINIC (Aiea 分店) - TOMORROW:
+${aieaTomorrow.map(formatEventLine).join("\n") || "  No appointments scheduled tomorrow."}
 `;
 
     // 2. Fetch database counts & stats in parallel
@@ -173,8 +191,7 @@ ${statsAndScheduleContext}
 
 ### Instructions:
 - Answer Dr. Cai's request using the real-time context above.
-- Ensure you read the "Programmatic Calendar Analysis" section very carefully. Double check the list under "TODAY (VA/Veteran Appointments)" or "TOMORROW (VA/Veteran Appointments)" to make sure you do not miss or omit any names in your reply when he asks for VA counts/lists.
-- If he asks you to summarize schedule or attendance, group the events logically by clinic (Liliha vs Aiea) or date (Today vs Tomorrow) and present a clean report.
+- **Clinic Separation Requirement**: When Dr. Cai asks for appointments, schedule summaries, or counts, you MUST ALWAYS group and list them separately by clinic location (e.g. first list LILIHA clinic's details, then list AIEA clinic's details). Never mix the two locations together in a single list.
 - Do not make up any appointments or metrics. If you don't know something, tell him you will check on it or advise him to review the Cases Dashboard.
 `;
 
