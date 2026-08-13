@@ -161,8 +161,11 @@ export async function POST(req: NextRequest) {
     // 2. Fetch availability slots dynamically
     let slots: string[] = [];
     try {
+      const leadLocation = (location || "Liliha").toLowerCase();
+      const locationParam = leadLocation.includes("aiea") ? "aiea" : "liliha";
+
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots`
+        `${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots?location=${locationParam}`
       );
       const result = await response.json();
       slots = result.slots || [];
