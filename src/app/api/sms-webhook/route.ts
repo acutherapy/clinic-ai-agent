@@ -3,6 +3,7 @@ import { sendSMS, getMessage } from "@/lib/ringcentral";
 import { saveConversation, getConversationHistory, formatPhoneE164 } from "@/lib/conversation";
 import { generateEmmaResponse } from "@/lib/emma";
 import { supabase } from "@/lib/supabase";
+import { handleBossConversation } from "@/lib/boss-agent";
 
 const DR_CAI_PHONE = "+18083083879";
 
@@ -47,6 +48,21 @@ export async function POST(req: NextRequest) {
 
     const cleanPhone = phone.replace(/\D/g, "");
     const cleanPhone10 = cleanPhone.slice(-10);
+
+    const isFromDrCai = phone === DR_CAI_PHONE || cleanPhone === DR_CAI_PHONE.replace(/\D/g, "") || cleanPhone10 === DR_CAI_PHONE.slice(-10);
+
+    // Boss Interceptor (Dr. Cai) - Direct Employee-to-Boss communication channel
+    if (direction === "Inbound" && isFromDrCai) {
+      console.log(`[Boss Interceptor] Dr. Cai texted Emma: "${message}"`);
+      await saveConversation(phone, "user", message);
+      const reply = await handleBossConversation(message, phone);
+      await sendSMS(phone, reply);
+      await saveConversation(phone, "assistant", reply);
+      return NextResponse.json({
+        success: true,
+        bossHandled: true,
+      });
+    }
 
     const isAya = cleanPhone10 === "8088951383";
     const isTomomi = cleanPhone10 === "8084289176";
