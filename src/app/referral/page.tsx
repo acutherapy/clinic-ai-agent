@@ -22,7 +22,87 @@ export default function ReferralIntake() {
   const [diagDesc, setDiagDesc] = useState("");
   
   const [loading, setLoading] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  async function handlePdfExtraction(file: File) {
+    setPdfLoading(true);
+    setStatusMsg(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/parse-referral-pdf", {
+        method: "POST",
+        body: formData,
+      });
+
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Failed to parse PDF");
+      }
+
+      const extracted = result.data;
+      if (extracted.patient_name) setPatientName(extracted.patient_name);
+      if (extracted.phone) setPhone(extracted.phone);
+      if (extracted.email) setEmail(extracted.email);
+      if (extracted.dob) setDob(extracted.dob);
+      
+      if (extracted.referral_class) {
+        if (extracted.referral_class === "Veterans") setReferralClass("Veterans");
+        else if (extracted.referral_class === "Workers' Comp" || extracted.referral_class.includes("Comp")) setReferralClass("Worker's Comp");
+        else if (extracted.referral_class === "Auto Injury") setReferralClass("Auto Injury");
+        else setReferralClass("Other");
+      }
+      
+      if (extracted.treating_physician) setTreatingPhysician(extracted.treating_physician);
+      if (extracted.referral_number) setReferralNumber(extracted.referral_number);
+      if (extracted.total_authorized_visits) setTotalVisits(String(extracted.total_authorized_visits));
+      if (extracted.referral_start_date) setStartDate(extracted.referral_start_date);
+      if (extracted.referral_end_date) setEndDate(extracted.referral_end_date);
+      if (extracted.diagnosis_code) setDiagCode(extracted.diagnosis_code);
+      if (extracted.diagnosis_desc) setDiagDesc(extracted.diagnosis_desc);
+
+      setStatusMsg({
+        type: "success",
+        text: `Referral PDF successfully analyzed! Please review and verify the pre-filled fields below.`,
+      });
+    } catch (err: any) {
+      console.error(err);
+      setStatusMsg({
+        type: "error",
+        text: `Failed to parse PDF: ${err.message}. Please fill out the form manually or try again.`,
+      });
+    } finally {
+      setPdfLoading(false);
+    }
+  }
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handlePdfExtraction(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      handlePdfExtraction(e.target.files[0]);
+    }
+  };
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -113,6 +193,48 @@ export default function ReferralIntake() {
 
         <form onSubmit={handleSubmit} style={styles.form}>
           
+          {/* PDF Drag & Drop Upload Zone */}
+          <section style={styles.section}>
+            <h2 style={styles.sectionTitle}>0. Auto-Fill with Referral PDF (Optional)</h2>
+            <div 
+              onDragEnter={handleDrag}
+              onDragOver={handleDrag}
+              onDragLeave={handleDrag}
+              onDrop={handleDrop}
+              style={{
+                ...styles.uploadZone,
+                borderColor: dragActive ? "#00796b" : "#d1d5db",
+                backgroundColor: dragActive ? "#f0fdfa" : "#fafafa",
+              }}
+            >
+              <input
+                type="file"
+                id="pdf-upload"
+                accept="application/pdf"
+                style={{ display: "none" }}
+                onChange={handleFileChange}
+                disabled={loading || pdfLoading}
+              />
+              <label htmlFor="pdf-upload" style={styles.uploadLabel}>
+                {pdfLoading ? (
+                  <span style={styles.uploadTextLoading}>
+                    🔄 Extracting and analyzing PDF with AI... Please wait.
+                  </span>
+                ) : (
+                  <>
+                    <span style={styles.uploadIcon}>📄</span>
+                    <span style={styles.uploadTextPrimary}>
+                      Drag and drop your referral PDF here, or <strong>browse files</strong>
+                    </span>
+                    <span style={styles.uploadTextSecondary}>
+                      Supports scanned PDFs, faxes, and VA/Workers' Comp forms.
+                    </span>
+                  </>
+                )}
+              </label>
+            </div>
+          </section>
+
           {/* section 1 */}
           <section style={styles.section}>
             <h2 style={styles.sectionTitle}>1. Patient Information</h2>
@@ -436,5 +558,38 @@ const styles: Record<string, React.CSSProperties> = {
     transition: "background-color 0.2s",
     marginTop: "16px",
     boxShadow: "0 4px 12px rgba(0, 121, 107, 0.2)",
+  },
+  uploadZone: {
+    border: "2px dashed #d1d5db",
+    borderRadius: "12px",
+    padding: "30px 20px",
+    textAlign: "center" as const,
+    cursor: "pointer",
+    transition: "all 0.2s ease",
+  },
+  uploadLabel: {
+    display: "flex",
+    flexDirection: "column" as const,
+    alignItems: "center",
+    cursor: "pointer",
+    width: "100%",
+  },
+  uploadIcon: {
+    fontSize: "36px",
+    marginBottom: "10px",
+  },
+  uploadTextPrimary: {
+    fontSize: "14px",
+    color: "#374151",
+    marginBottom: "4px",
+  },
+  uploadTextSecondary: {
+    fontSize: "12px",
+    color: "#6b7280",
+  },
+  uploadTextLoading: {
+    fontSize: "14px",
+    fontWeight: "600",
+    color: "#00796b",
   },
 };
