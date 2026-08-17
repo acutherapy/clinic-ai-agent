@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendSMS } from "@/lib/ringcentral";
 import { supabase } from "@/lib/supabase";
-import { saveConversation } from "@/lib/conversation";
+import { saveConversation, getPhoneFilter } from "@/lib/conversation";
 import { generateEmmaResponse } from "@/lib/emma";
 
 async function syncReferralToLeadsAndCases(record: any) {
@@ -28,7 +28,7 @@ async function syncReferralToLeadsAndCases(record: any) {
     const { data: existingLead } = await supabase
       .from("leads")
       .select("*")
-      .or(`phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`)
+      .or(getPhoneFilter(phone))
       .maybeSingle();
 
     if (existingLead) {

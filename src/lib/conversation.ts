@@ -10,6 +10,30 @@ export function formatPhoneE164(phone: string): string {
   return clean10 ? `+1${clean10}` : phone;
 }
 
+export function getPhoneFilter(phoneInput: string): string {
+  if (!phoneInput) return "phone.eq.invalid";
+  
+  const clean = phoneInput.replace(/\D/g, "");
+  const clean10 = clean.slice(-10);
+  if (!clean10) {
+    return `phone.eq.${phoneInput}`;
+  }
+
+  const area = clean10.slice(0, 3);
+  const prefix = clean10.slice(3, 6);
+  const line = clean10.slice(6);
+
+  const v1 = clean10;                     
+  const v2 = `(${area}) ${prefix}-${line}`; 
+  const v3 = `(${area})${prefix}-${line}`;  
+  const v4 = `${area}-${prefix}-${line}`;   
+  const v5 = `${area} ${prefix} ${line}`;   
+  const v6 = `+1${clean10}`;                
+  const v7 = `1${clean10}`;                 
+
+  return `phone.eq.${v1},phone.eq.${v2},phone.eq.${v3},phone.eq.${v4},phone.eq.${v5},phone.eq.${v6},phone.eq.${v7},phone.ilike.%${clean10}%`;
+}
+
 export async function saveConversation(
   phone: string,
   role: "user" | "assistant",

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { sendSMS } from "@/lib/ringcentral";
-import { saveConversation, getConversationHistory } from "@/lib/conversation";
+import { saveConversation, getConversationHistory, getPhoneFilter } from "@/lib/conversation";
 import { generateEmmaResponse } from "@/lib/emma";
 
 export async function GET() {
@@ -30,9 +30,9 @@ export async function GET() {
       let exists = false;
       if (cleanPhone10) {
         const [lCheck, aCheck, hCheck] = await Promise.all([
-          supabase.from("leads").select("id").or(`phone.eq.${patient.phone},phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`).limit(1).maybeSingle(),
-          supabase.from("appointments").select("id").or(`phone.eq.${patient.phone},phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`).limit(1).maybeSingle(),
-          supabase.from("appointment_history").select("id").or(`phone.eq.${patient.phone},phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`).limit(1).maybeSingle()
+          supabase.from("leads").select("id").or(getPhoneFilter(patient.phone)).limit(1).maybeSingle(),
+          supabase.from("appointments").select("id").or(getPhoneFilter(patient.phone)).limit(1).maybeSingle(),
+          supabase.from("appointment_history").select("id").or(getPhoneFilter(patient.phone)).limit(1).maybeSingle()
         ]);
         if (lCheck.data || aCheck.data || hCheck.data) {
           exists = true;
@@ -107,9 +107,9 @@ export async function POST(req: NextRequest) {
     let exists = false;
     if (cleanPhone10) {
       const [lCheck, aCheck, hCheck] = await Promise.all([
-        supabase.from("leads").select("id").or(`phone.eq.${phone},phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`).limit(1).maybeSingle(),
-        supabase.from("appointments").select("id").or(`phone.eq.${phone},phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`).limit(1).maybeSingle(),
-        supabase.from("appointment_history").select("id").or(`phone.eq.${phone},phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`).limit(1).maybeSingle()
+        supabase.from("leads").select("id").or(getPhoneFilter(phone)).limit(1).maybeSingle(),
+        supabase.from("appointments").select("id").or(getPhoneFilter(phone)).limit(1).maybeSingle(),
+        supabase.from("appointment_history").select("id").or(getPhoneFilter(phone)).limit(1).maybeSingle()
       ]);
       if (lCheck.data || aCheck.data || hCheck.data) {
         exists = true;

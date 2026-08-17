@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendSMS, getMessage } from "@/lib/ringcentral";
-import { saveConversation, getConversationHistory, formatPhoneE164 } from "@/lib/conversation";
+import { saveConversation, getConversationHistory, formatPhoneE164, getPhoneFilter } from "@/lib/conversation";
 import { generateEmmaResponse } from "@/lib/emma";
 import { supabase } from "@/lib/supabase";
 import { handleBossConversation } from "@/lib/boss-agent";
@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
                 pause_emma: true,
                 pending_human_reply: false
               })
-              .or(`phone.eq.${phone},phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`);
+              .or(getPhoneFilter(phone));
           } catch (err: any) {
             console.error("Failed to update takeover flags in database:", err.message);
           }
@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
                 pause_emma: false,
                 pending_human_reply: false
               })
-              .or(`phone.eq.${phone},phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`);
+              .or(getPhoneFilter(phone));
           } catch (err: any) {
             console.error("Failed to update pause_emma column:", err.message);
           }
@@ -168,19 +168,19 @@ export async function POST(req: NextRequest) {
         supabase
           .from("leads")
           .select("id")
-          .or(`phone.eq.${phone},phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`)
+          .or(getPhoneFilter(phone))
           .limit(1)
           .maybeSingle(),
         supabase
           .from("appointments")
           .select("id")
-          .or(`phone.eq.${phone},phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`)
+          .or(getPhoneFilter(phone))
           .limit(1)
           .maybeSingle(),
         supabase
           .from("appointment_history")
           .select("id")
-          .or(`phone.eq.${phone},phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`)
+          .or(getPhoneFilter(phone))
           .limit(1)
           .maybeSingle()
       ]);
@@ -196,7 +196,7 @@ export async function POST(req: NextRequest) {
         await supabase
           .from("sms_conversations")
           .delete()
-          .or(`phone.eq.${phone},phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`);
+          .or(getPhoneFilter(phone));
       }
       return NextResponse.json({
         success: true,
@@ -239,7 +239,7 @@ export async function POST(req: NextRequest) {
       const { data: dbLead } = await supabase
         .from("leads")
         .select("*")
-        .or(`phone.eq.${phone},phone.eq.${cleanPhoneCheck},phone.eq.${cleanPhoneCheck10},phone.ilike.%${cleanPhoneCheck10}%`)
+        .or(getPhoneFilter(phone))
         .limit(1)
         .maybeSingle();
 
@@ -393,7 +393,7 @@ export async function POST(req: NextRequest) {
             pending_human_reply: true,
             same_day_requested_at: new Date().toISOString()
           })
-          .or(`phone.eq.${phone},phone.eq.${cleanPhoneCheck},phone.eq.${cleanPhoneCheck10},phone.ilike.%${cleanPhoneCheck10}%`);
+          .or(getPhoneFilter(phone));
       } catch (err: any) {
         console.error("Failed to update same-day flags in database:", err.message);
       }
@@ -452,7 +452,7 @@ export async function POST(req: NextRequest) {
       const { data: dbLead } = await supabase
         .from("leads")
         .select("*")
-        .or(`phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`)
+        .or(getPhoneFilter(phone))
         .limit(1)
         .maybeSingle();
 
@@ -496,56 +496,6 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // 2.5 Aiea Location Escalation
-      const isAieaSelected = 
-        (bookingResult.slots?.location && bookingResult.slots.location.toLowerCase().includes("aiea")) ||
-        (leadRecord?.location && leadRecord.location.toLowerCase().includes("aiea")) ||
-        (/\baiea\b/i.test(message));
-
-      if (isAieaSelected) {
-        console.log(`[Aiea Intercept] Patient ${patientName} (${phone}) requested Aiea location. Pausing Emma.`);
-        
-        // 1. Send transition message to the patient
-        const transitionMsg = `Thank you! I am forwarding your request to our Aiea clinic staff to help you schedule. One of our team members will text you shortly to finalize your appointment!`;
-        try {
-          await sendSMS(phone, transitionMsg);
-          await saveConversation(phone, "assistant", transitionMsg);
-        } catch (smsErr: any) {
-          console.error("Failed to send Aiea transition SMS to patient:", smsErr.message);
-        }
-
-        // 2. Pause Emma and set pending human reply flags in database
-        try {
-          await supabase
-            .from("leads")
-            .update({ 
-              pause_emma: true,
-              pending_human_reply: true,
-              location: "Aiea",
-              same_day_requested_at: new Date().toISOString()
-            })
-            .or(`phone.eq.${phone},phone.eq.${cleanPhoneCheck},phone.eq.${cleanPhoneCheck10},phone.ilike.%${cleanPhoneCheck10}%`);
-        } catch (err: any) {
-          console.error("Failed to update Aiea location flags in database:", err.message);
-        }
-
-        // 3. Alert Dr. Cai immediately via SMS
-        const alertMsg = `🚨 AIEA LOCATION ESCALATION! ${patientName} (${phone}) requested Aiea clinic: "${message}". Emma has paused. Please reply to them manually!`;
-        try {
-          await sendSMS(DR_CAI_PHONE, alertMsg);
-          console.log(`[Aiea Intercept] Alert sent to Dr. Cai for ${phone}`);
-        } catch (err: any) {
-          console.error("Failed to send Aiea escalation SMS alert to Dr. Cai:", err.message);
-        }
-
-        return NextResponse.json({
-          success: true,
-          forwardedToHuman: true,
-          reason: "AIEA_LOCATION",
-          message: "Aiea clinic requested. Forwarded to human staff. Emma paused."
-        });
-      }
-
       // Human takeover escalation for CANCEL_APPOINTMENT, TRANSFER_TO_HUMAN, and UNKNOWN intents
       const isHumanTransfer = ["TRANSFER_TO_HUMAN", "CANCEL_APPOINTMENT", "UNKNOWN"].includes(bookingResult.intent);
       if (isHumanTransfer) {
@@ -560,7 +510,7 @@ export async function POST(req: NextRequest) {
               pending_human_reply: true,
               same_day_requested_at: new Date().toISOString()
             })
-            .or(`phone.eq.${phone},phone.eq.${cleanPhoneCheck},phone.eq.${cleanPhoneCheck10},phone.ilike.%${cleanPhoneCheck10}%`);
+            .or(getPhoneFilter(phone));
         } catch (err: any) {
           console.error("Failed to update human takeover flags in database:", err.message);
         }
@@ -613,11 +563,10 @@ export async function POST(req: NextRequest) {
         } else {
           console.error("Failed to create new lead for incoming SMS:", insertError);
           
-          // Fallback to appointments table if lead creation fails
           const { data: dbAppt } = await supabase
             .from("appointments")
             .select("patient_name")
-            .or(`phone.eq.${cleanPhone},phone.eq.${cleanPhone10},phone.ilike.%${cleanPhone10}%`)
+            .or(getPhoneFilter(phone))
             .limit(1)
             .maybeSingle();
           if (dbAppt?.patient_name) {
