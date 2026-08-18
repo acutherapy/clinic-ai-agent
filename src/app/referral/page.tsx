@@ -22,6 +22,7 @@ export default function ReferralIntake() {
   const [diagDesc, setDiagDesc] = useState("");
   
   const [loading, setLoading] = useState(false);
+  const [triggerSms, setTriggerSms] = useState(true);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -127,7 +128,7 @@ export default function ReferralIntake() {
           dob: dob || null,
           referral_class: referralClass,
           treating_physician: treatingPhysician.trim() || null,
-          referral_status: referralStatus,
+          referral_status: triggerSms ? referralStatus : "NoSMS",
           service_type: serviceType,
           referral_number: referralNumber.trim(),
           total_authorized_visits: parseInt(totalVisits, 10) || 0,
@@ -146,7 +147,9 @@ export default function ReferralIntake() {
 
       setStatusMsg({
         type: "success",
-        text: `Referral registered successfully! Welcome SMS has been sent to ${patientName}.`,
+        text: triggerSms
+          ? `Referral registered successfully! Welcome SMS has been sent to ${patientName}.`
+          : `Referral registered successfully! (SMS outreach skipped as requested.)`,
       });
 
       // Reset form
@@ -430,8 +433,36 @@ export default function ReferralIntake() {
             </div>
           </section>
 
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "20px" }}>
+            <input
+              type="checkbox"
+              id="triggerSms"
+              checked={triggerSms}
+              onChange={(e) => setTriggerSms(e.target.checked)}
+              disabled={loading}
+              style={{
+                width: "18px",
+                height: "18px",
+                accentColor: "#00796b",
+                cursor: "pointer",
+              }}
+            />
+            <label
+              htmlFor="triggerSms"
+              style={{
+                fontSize: "14px",
+                fontWeight: "600",
+                color: "#374151",
+                cursor: "pointer",
+                userSelect: "none",
+              }}
+            >
+              Trigger Patient Welcome SMS (立即发送迎新短信)
+            </label>
+          </div>
+
           <button type="submit" disabled={loading} style={styles.button}>
-            {loading ? "Registering..." : "Submit Referral & Trigger SMS"}
+            {loading ? "Registering..." : triggerSms ? "Submit Referral & Trigger SMS" : "Submit Referral (No SMS)"}
           </button>
 
         </form>

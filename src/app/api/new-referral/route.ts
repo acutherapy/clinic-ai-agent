@@ -191,6 +191,28 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // 1.5 Check if welcome SMS should be skipped
+    if (record.referral_status === "NoSMS") {
+      console.log(`[Referral Sync] skip_sms requested. Resetting referral status to Active and skipping SMS outreach for ${patient_name}.`);
+      
+      const { error: updateError } = await supabase
+        .from("patient_referrals")
+        .update({ referral_status: "Active" })
+        .eq("id", id);
+
+      if (updateError) {
+        console.error("Error resetting referral status to Active:", updateError);
+      }
+
+      return NextResponse.json({
+        success: true,
+        isWebhook,
+        phone,
+        smsSkipped: true,
+        message: "Referral registered successfully. Welcome SMS skipped as requested."
+      });
+    }
+
     // 2. Fetch available slots dynamically
     let slots: string[] = [];
     try {
