@@ -3,6 +3,7 @@ import { sendSMS } from "@/lib/ringcentral";
 import { supabase } from "@/lib/supabase";
 import { saveConversation, getPhoneFilter } from "@/lib/conversation";
 import { generateEmmaResponse } from "@/lib/emma";
+import { supabaseDashboard } from "@/lib/supabase-dashboard";
 
 async function syncReferralToLeadsAndCases(record: any) {
   const {
@@ -14,7 +15,8 @@ async function syncReferralToLeadsAndCases(record: any) {
     total_authorized_visits,
     referral_end_date,
     treating_physician,
-    referral_class
+    referral_class,
+    service_type
   } = record;
 
   if (!phone || !patient_name) return null;
@@ -122,6 +124,116 @@ async function syncReferralToLeadsAndCases(record: any) {
     }
   }
 
+  // 4. Synchronize with the Clinic Dashboard Database in real-time!
+  try {
+    console.log(`[Referral Sync] Syncing referral for ${patient_name} to Dashboard Database...`);
+    
+    // Check if patient already exists in dashboard `patients` table
+    const { data: existingDashboardPatient } = await supabaseDashboard
+      .from("patients")
+      .select("*")
+      .or(getPhoneFilter(phone))
+      .maybeSingle();
+
+    let dashboardPatientId = "";
+
+    const dashboardPatientFields: any = {
+      "Name": patient_name,
+      "Phone": phone,
+      "Email Address": email || null,
+      "DOB": dob || null,
+      "Referral Number": referral_number || null,
+      "Treatment Type": service_type || "Acupuncture",
+      "Authorized Sessions": total_authorized_visits ? String(total_authorized_visits) : "12",
+      "diagnostic1": record.diagnosis_desc || null,
+      "diagnostic_code1": record.diagnosis_code || null,
+      "Start Date": record.referral_start_date || null,
+      "Expiration Date": referral_end_date || null,
+      "Referring Provider": treating_physician || null,
+      "RFS State": "Sent",
+      "RFS Date": new Date().toISOString().split("T")[0]
+    };
+
+    if (existingDashboardPatient) {
+      dashboardPatientId = existingDashboardPatient.id;
+      console.log(`[Referral Sync] Found existing Dashboard Patient ID ${dashboardPatientId}. Updating fields...`);
+      await supabaseDashboard
+        .from("patients")
+        .update(dashboardPatientFields)
+        .eq("id", dashboardPatientId);
+    } else {
+      console.log(`[Referral Sync] Dashboard Patient not found. Calculating next sequential ID...`);
+      const { data: allPatients } = await supabaseDashboard
+        .from("patients")
+        .select("id");
+
+      let nextIdVal = 1;
+      if (allPatients && allPatients.length > 0) {
+        const numericIds = allPatients
+          .map(p => parseInt(p.id, 10))
+          .filter(idNum => !isNaN(idNum));
+        if (numericIds.length > 0) {
+          nextIdVal = Math.max(...numericIds) + 1;
+        }
+      }
+      const nextId = String(nextIdVal);
+      dashboardPatientId = nextId;
+      dashboardPatientFields.id = nextId;
+
+      console.log(`[Referral Sync] Inserting new record in Dashboard patients table with ID: ${nextId}`);
+      const { error: dbPatientErr } = await supabaseDashboard
+        .from("patients")
+        .insert(dashboardPatientFields);
+
+      if (dbPatientErr) {
+        console.error("[Referral Sync] Error inserting Dashboard Patient:", dbPatientErr.message);
+        dashboardPatientId = ""; // Reset since insert failed
+      }
+    }
+
+    if (dashboardPatientId) {
+      // Synchronize claim info in `claim_info` table
+      const { data: existingClaim } = await supabaseDashboard
+        .from("claim_info")
+        .select("id")
+        .eq("patient_id", String(dashboardPatientId))
+        .eq("claim_number", referral_number)
+        .maybeSingle();
+
+      if (!existingClaim) {
+        console.log(`[Referral Sync] Claim info not found. Calculating next claim ID...`);
+        const { data: allClaims } = await supabaseDashboard
+          .from("claim_info")
+          .select("id");
+        
+        let nextClaimId = 1;
+        if (allClaims && allClaims.length > 0) {
+          const ids = allClaims.map(c => Number(c.id)).filter(idNum => !isNaN(idNum));
+          if (ids.length > 0) {
+            nextClaimId = Math.max(...ids) + 1;
+          }
+        }
+
+        console.log(`[Referral Sync] Inserting into claim_info with ID: ${nextClaimId} for patient: ${dashboardPatientId}`);
+        const { error: dbClaimErr } = await supabaseDashboard
+          .from("claim_info")
+          .insert({
+            id: nextClaimId,
+            patient_id: String(dashboardPatientId),
+            claim_number: referral_number,
+            insurance_name: referral_class || "VA Referral",
+            doi: record.referral_start_date || null
+          });
+
+        if (dbClaimErr) {
+          console.error("[Referral Sync] Error inserting Dashboard claim_info:", dbClaimErr.message);
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error("[Referral Sync] Failed to synchronize with Dashboard Database:", err.message);
+  }
+
   return leadRecord;
 }
 
@@ -142,9 +254,11 @@ export async function POST(req: NextRequest) {
       service_type,
       referral_number,
       total_authorized_visits,
+      referral_start_date,
       referral_end_date,
       treating_physician,
-      referral_class
+      referral_class,
+      referral_status
     } = record;
 
     if (!phone || !patient_name) {
@@ -170,10 +284,11 @@ export async function POST(req: NextRequest) {
           service_type,
           referral_number,
           total_authorized_visits,
+          referral_start_date: referral_start_date || null,
           referral_end_date,
           treating_physician: treating_physician || null,
           referral_class: referral_class || "Veterans",
-          referral_status: "Active"
+          referral_status: referral_status || "Active"
         })
         .select()
         .single();
