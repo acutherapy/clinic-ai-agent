@@ -296,6 +296,35 @@ export async function GET(req: NextRequest) {
       sentCount++;
     }
 
+    // ==========================================
+    // SEND DAILY SUMMARY REPORT TO DR. CAI
+    // ==========================================
+    try {
+      const dryRunLabel = isDryRun ? "【MOCK / SIMULATION】" : "";
+      const noShows = outreachLog.filter(x => x.scenario === "No-Show Recall").length;
+      const unusedVisits = outreachLog.filter(x => x.scenario === "Unused Visits Balance").length;
+      const inactiveCheckins = outreachLog.filter(x => x.scenario === "Inactive Care Check-In").length;
+
+      let detailsText = "";
+      if (outreachLog.length > 0) {
+        detailsText = "\nDetails:\n" + outreachLog.map((x, idx) => `${idx + 1}. ${x.patientName} (${x.scenario})`).join("\n");
+      } else {
+        detailsText = "\nDetails:\nNo patients matched criteria today.";
+      }
+
+      const reportSMS = `📊 CHLOE DAILY OUTREACH REPORT ${dryRunLabel}\n\n` +
+        `Total Outreaches: ${sentCount}\n` +
+        `- No-Show Recalls: ${noShows}\n` +
+        `- Unused Visit Reminders: ${unusedVisits}\n` +
+        `- Inactive Check-ins: ${inactiveCheckins}\n` +
+        detailsText;
+
+      console.log(`[Chloe Report] Sending daily outreach summary to Dr. Cai:\n${reportSMS}`);
+      await sendSMS(DR_CAI_PHONE, reportSMS);
+    } catch (reportErr: any) {
+      console.error("[Chloe Report] Failed to send summary SMS to Dr. Cai:", reportErr.message);
+    }
+
     return NextResponse.json({
       success: true,
       dryrun: isDryRun,
