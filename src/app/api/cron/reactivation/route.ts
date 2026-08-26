@@ -225,12 +225,13 @@ export async function GET(req: NextRequest) {
     // ==========================================
     // SCENARIO 3: Routine Inactive Check-In (14-30 Days Inactive)
     // ==========================================
-    // Get all leads that are not opted out or paused
+    // Get all real patients (ongoing or finished) that are not opted out or paused
     const { data: allLeads } = await supabase
       .from("leads")
       .select("*")
       .eq("is_opted_out", false)
-      .eq("pause_emma", false);
+      .eq("pause_emma", false)
+      .in("status", ["ongoing", "finished"]);
 
     for (const lead of allLeads || []) {
       const notes = lead.notes || "";
