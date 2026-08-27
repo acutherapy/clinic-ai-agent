@@ -230,6 +230,62 @@ async function syncReferralToLeadsAndCases(record: any) {
         }
       }
     }
+
+    // Synchronize claim info in `insurance_claims` table
+    const { data: existingInsuranceClaim } = await supabaseDashboard
+      .from("insurance_claims")
+      .select("id")
+      .eq("patient_name", patient_name)
+      .eq("subscriber_number", referral_number)
+      .maybeSingle();
+
+    if (!existingInsuranceClaim) {
+      console.log(`[Referral Sync] Claim not found in insurance_claims. Calculating next claim_id...`);
+      const { data: allClaimsForId } = await supabaseDashboard
+        .from("insurance_claims")
+        .select("claim_id");
+
+      let nextClaimSeq = 1;
+      if (allClaimsForId && allClaimsForId.length > 0) {
+        const numericClaims = allClaimsForId
+          .map(c => parseInt(c.claim_id, 10))
+          .filter(idNum => !isNaN(idNum));
+        if (numericClaims.length > 0) {
+          nextClaimSeq = Math.max(...numericClaims) + 1;
+        }
+      }
+      const nextClaimIdStr = String(nextClaimSeq);
+
+      console.log(`[Referral Sync] Inserting into Dashboard insurance_claims table with claim_id: ${nextClaimIdStr}`);
+      const { error: dbInsClaimErr } = await supabaseDashboard
+        .from("insurance_claims")
+        .insert({
+          claim_id: nextClaimIdStr,
+          patient_guid: `46947-${nextClaimIdStr}`,
+          insurer: referral_class || "TriWest VA CCN",
+          patient_name: patient_name,
+          subscriber_number: referral_number || "",
+          status: "active",
+          end_date: referral_end_date || null,
+          number_of_treatments: total_authorized_visits || 12,
+          remaining_sessions: total_authorized_visits || 12,
+          session_referral: service_type || "Acupuncture",
+          notes: record.diagnosis_desc || null,
+          wallet_id: `PAT-${nextClaimIdStr}`,
+          qr_code: `PAT-${nextClaimIdStr}`,
+          wallet_created: false,
+          email: email || null,
+          updated_at: new Date().toISOString()
+        });
+
+      if (dbInsClaimErr) {
+        console.error("[Referral Sync] Error inserting Dashboard insurance_claims:", dbInsClaimErr.message);
+      } else {
+        console.log(`[Referral Sync] Successfully synchronized claim into Dashboard insurance_claims table.`);
+      }
+    } else {
+      console.log(`[Referral Sync] Claim already exists in Dashboard insurance_claims table.`);
+    }
   } catch (err: any) {
     console.error("[Referral Sync] Failed to synchronize with Dashboard Database:", err.message);
   }
