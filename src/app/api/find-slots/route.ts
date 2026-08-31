@@ -39,7 +39,7 @@ const CLINIC_RULES = {
   aiea: {
     hoursWeekday: [9, 10, 11, 12, 13, 14, 15, 16], // 9am to 5pm (last slot 4pm)
     hoursSaturday: [9, 10, 11, 12, 13, 14, 15, 16],
-    businessDays: [2, 3, 4, 5, 6], // Tue-Sat
+    businessDays: [1, 2, 3, 4, 5, 6], // Mon-Sat (Added Monday 9am-5pm)
     capacity: 1, // Max 1 customer per hour across all treatments
   }
 };
