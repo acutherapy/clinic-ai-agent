@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import fs from "fs";
 import path from "path";
+import { formatDateString } from "@/lib/date-utils";
 
 export async function POST(req: Request) {
   try {
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
 
     // 2. Fill text fields
     if (patientName) form.getTextField("VETERANSNAME[0]").setText(patientName.toUpperCase());
-    if (dob) form.getTextField("DOB[0]").setText(dob);
+    if (dob) form.getTextField("DOB[0]").setText(formatDateString(dob));
     if (facility) form.getTextField("VAFACILITYADDRESS[0]").setText(facility.toUpperCase());
     if (authNum) form.getTextField("VAAUTHORIZATIONNUMBER[0]").setText(authNum.toUpperCase());
     

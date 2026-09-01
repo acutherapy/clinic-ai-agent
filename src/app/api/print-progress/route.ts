@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import fs from "fs";
 import path from "path";
+import { formatDateString } from "@/lib/date-utils";
 
 export async function POST(req: Request) {
   try {
@@ -105,7 +106,7 @@ export async function POST(req: Request) {
     if (patientName) page.drawText(patientName.toUpperCase(), { x: 175, y: 702.33, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
     
     page.drawText("DATE BIRTH:", { x: 305, y: 702.33, size: 9, font: helvetica, color: rgb(0, 0, 0) });
-    if (dob) page.drawText(dob.toUpperCase(), { x: 375, y: 702.33, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
+    if (dob) page.drawText(formatDateString(dob).toUpperCase(), { x: 375, y: 702.33, size: 9, font: helveticaNormal, color: rgb(0, 0, 0) });
 
     // Row 2 (Left column starts at x: 45, Right column starts at x: 305)
     page.drawText("AUTHORIZATION NUMBER:", { x: 45, y: 685.51, size: 9, font: helvetica, color: rgb(0, 0, 0) });

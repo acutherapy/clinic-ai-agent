@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateString } from "@/lib/date-utils";
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { 
@@ -242,7 +243,7 @@ export default function ClinicalHub() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           patientName: selectedLead.name,
-          dob: selectedLead.dob ? new Date(selectedLead.dob).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" }) : "",
+          dob: formatDateString(selectedLead.dob),
           authNum: rfsAuthNum,
           facility: rfsFacility,
           cptCodes: rfsCptCodes,
@@ -346,7 +347,7 @@ export default function ClinicalHub() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           patientName: selectedLead.name,
-          dob: selectedLead.dob ? new Date(selectedLead.dob).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" }) : "",
+          dob: formatDateString(selectedLead.dob),
           authNum: progressAuthNum,
           diagnosis: icdCode + " " + icdDesc,
           numTreatments: progressNumTreatments,

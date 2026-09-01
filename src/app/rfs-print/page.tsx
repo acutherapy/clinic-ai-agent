@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { formatDateString } from "@/lib/date-utils";
 
 function RfsPrintContent() {
   const searchParams = useSearchParams();
@@ -64,13 +65,7 @@ function RfsPrintContent() {
   });
 
   // Calculate DOB formatting
-  const formattedDob = patient?.dob
-    ? new Date(patient.dob).toLocaleDateString("en-US", {
-        month: "2-digit",
-        day: "2-digit",
-        year: "numeric"
-      })
-    : "";
+  const formattedDob = formatDateString(patient?.dob);
 
   const icdCode = activeCase?.active_icd_codes?.[0] || "M25.512";
   const icdDesc = icdCode.replace(/\./g, "").startsWith("M25512")

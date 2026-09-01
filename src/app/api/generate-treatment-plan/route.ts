@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { formatDateString } from "@/lib/date-utils";
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,12 +16,19 @@ export async function POST(req: NextRequest) {
       fax,
       preparedBy,
       preparedByPhone,
-      diagnoses, // array of { code, description }
+      diagnoses, // [{ code, description }]
       serviceType,
       requestedSessions,
       requestedDays,
       startDate,
       baselinePain,
+      visitsAuthorized,
+      freqDuration,
+      treatmentGoal,
+      subjectiveComplaints,
+      objectiveFindings,
+      initialPain,
+      currentPain,
       projectedPain,
       workTolerance,
       prognosis, // "GUARDED", "FAVORABLE", "POOR_SLOW", "MMI_PPD", "REM_EXC", "NEW_AREA"
@@ -29,10 +36,10 @@ export async function POST(req: NextRequest) {
       clinicName
     } = body;
 
-    const formattedDoi = doi ? new Date(doi).toLocaleDateString('en-US') : "";
-    const formattedDob = dob ? new Date(dob).toLocaleDateString('en-US') : "";
-    const formattedStartDate = startDate ? new Date(startDate).toLocaleDateString('en-US') : new Date().toLocaleDateString('en-US');
-    const today = new Date().toLocaleDateString('en-US');
+    const formattedDoi = doi ? formatDateString(doi) : "";
+    const formattedDob = dob ? formatDateString(dob) : "";
+    const formattedStartDate = startDate ? formatDateString(startDate) : formatDateString(new Date().toISOString().split("T")[0]);
+    const today = formatDateString(new Date().toISOString().split("T")[0]);
 
     // Build the diagnostic codes string
     const diagString = (diagnoses || []).map((d: any) => `${d.code} (${d.description})`).join(", ");
