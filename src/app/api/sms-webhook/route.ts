@@ -99,80 +99,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Outbound Interceptor for Human Takeover
+    // Outbound Interceptor: Simply log outbound messages to conversation history
     if (direction !== "Inbound") {
       console.log(`[Outbound SMS] Sent to patient: ${phone} - "${message}"`);
       
-      if (phone) {
-        // Fetch recent assistant messages for this phone to check if this is system-generated
+      if (phone && message) {
         const { data: lastLogged } = await supabase
           .from("sms_conversations")
           .select("*")
           .eq("phone", phone)
           .eq("role", "assistant")
           .order("created_at", { ascending: false })
-          .limit(5);
+          .limit(1);
 
-        // Normalize text helper for whitespace, carriage returns, and case differences
-        const normalizeText = (str: string) =>
-          (str || "").replace(/\r\n/g, "\n").replace(/\s+/g, " ").trim().toLowerCase();
-
-        const normalizedIncoming = normalizeText(message);
-
-        // Check 1: Exact or substring match in recent assistant messages
-        const isMatchedMessage = lastLogged?.some((msg: any) => {
-          const normLogged = normalizeText(msg.message);
-          return (
-            normLogged === normalizedIncoming ||
-            (normLogged.length > 10 && (normLogged.includes(normalizedIncoming) || normalizedIncoming.includes(normLogged)))
-          );
-        });
-
-        // Check 2: Was an assistant message logged for this phone in the last 5 minutes?
-        const now = Date.now();
-        const isRecentSystemMessage = lastLogged?.some((msg: any) => {
-          const msgTime = new Date(msg.created_at).getTime();
-          return now - msgTime < 5 * 60 * 1000; // 5 minutes window
-        });
-
-        const isSystemGenerated = isMatchedMessage || isRecentSystemMessage;
-
-        if (!isSystemGenerated) {
-          console.log(`[Human Takeover] Manual SMS sent by staff. Pausing Emma and clearing pending same-day request for ${phone}.`);
-          
-          // 1. Log the human message in the history
+        if (!lastLogged || lastLogged.length === 0 || lastLogged[0].message !== message) {
           await saveConversation(phone, "assistant", message);
-
-          // 2. Set pause_emma to true and clear pending_human_reply in the leads table
-          try {
-            await supabase
-              .from("leads")
-              .update({ 
-                pause_emma: true,
-                pending_human_reply: false
-              })
-              .or(getPhoneFilter(phone));
-          } catch (err: any) {
-            console.error("Failed to update takeover flags in database:", err.message);
-          }
-        } else {
-          console.log(`[Outbound Interceptor] Confirmed system/Emma outbound message for ${phone}. Emma will NOT be paused.`);
-        }
-
-        // Check if human explicitly wants to resume Emma
-        if (message && /resume emma|开启emma|\/resume/i.test(message)) {
-          console.log(`[Human Handback] Staff requested to resume Emma for ${phone}.`);
-          try {
-            await supabase
-              .from("leads")
-              .update({ 
-                pause_emma: false,
-                pending_human_reply: false
-              })
-              .or(getPhoneFilter(phone));
-          } catch (err: any) {
-            console.error("Failed to update pause_emma column:", err.message);
-          }
         }
       }
 
