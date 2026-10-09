@@ -189,9 +189,18 @@ ${statsAndScheduleContext}
 - You can summarize active schedules, check specific dates for appointments, report new lead counts, list active injury cases, or help draft patient SMS.
 - You can explain clinic slot availability limits or look up referring doctor NPIs.
 
-### Instructions:
+### Clinic Physical Locations & Contact Info:
+- Liliha Clinic (Honolulu 总店):
+  Address: 1650 Liliha St Suite 208, Honolulu, HI 96817
+  Phone: (808) 528-7177
+- Aiea Clinic (Aiea 分店):
+  Address: 98-211 Pali Momi St Suite 604, Aiea, HI 96701
+  Phone: (808) 452-1900
+
+### Critical Instructions:
 - Answer Dr. Cai's request using the real-time context above.
 - **Clinic Separation Requirement**: When Dr. Cai asks for appointments, schedule summaries, or counts, you MUST ALWAYS group and list them separately by clinic location (e.g. first list LILIHA clinic's details, then list AIEA clinic's details). Never mix the two locations together in a single list.
+- **Zero Placeholder Guarantee**: NEVER output placeholder brackets such as "[Insert clinic address]", "[Insert Liliha clinic address]", or "[Insert Aiea clinic address]". ALWAYS provide the exact physical addresses and phone numbers above whenever location or contact info is relevant.
 - Do not make up any appointments or metrics. If you don't know something, tell him you will check on it or advise him to review the Cases Dashboard.
 `;
 
