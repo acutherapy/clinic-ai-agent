@@ -125,11 +125,13 @@ export async function POST(req: NextRequest) {
 
     console.log("FULL SMS:", JSON.stringify(sms, null, 2));
 
-    // Validate if the number exists in the database (leads, appointments, appointment_history)
+    // Validate if the number exists in the database (leads, appointments, appointment_history, patient_referrals)
+    // or has pre-existing conversation history with the clinic
     let existsInDb = false;
+    let hasHistory = false;
 
     if (cleanPhone10) {
-      const [leadCheck, apptCheck, historyCheck] = await Promise.all([
+      const [leadCheck, apptCheck, historyCheck, referralCheck, existingHistory] = await Promise.all([
         supabase
           .from("leads")
           .select("id")
@@ -147,10 +149,19 @@ export async function POST(req: NextRequest) {
           .select("id")
           .or(getPhoneFilter(phone))
           .limit(1)
-          .maybeSingle()
+          .maybeSingle(),
+        supabase
+          .from("patient_referrals")
+          .select("id")
+          .or(getPhoneFilter(phone))
+          .limit(1)
+          .maybeSingle(),
+        getConversationHistory(phone, 1)
       ]);
 
-      if (leadCheck.data || apptCheck.data || historyCheck.data) {
+      hasHistory = !!(existingHistory && existingHistory.length > 0);
+
+      if (leadCheck.data || apptCheck.data || historyCheck.data || referralCheck?.data || hasHistory) {
         existsInDb = true;
       }
     }
@@ -169,10 +180,6 @@ export async function POST(req: NextRequest) {
         message: "Stranger number skipped and memory sync cleanup done."
       });
     }
-
-    // Check if there is pre-existing conversation history (prior to this webhook event)
-    const existingHistory = await getConversationHistory(phone, 1);
-    const hasHistory = existingHistory && existingHistory.length > 0;
 
     // Detect if this message is a voicemail notification or call message
     const isVoicemailOrCall = 

@@ -11,27 +11,33 @@ export function formatPhoneE164(phone: string): string {
 }
 
 export function getPhoneFilter(phoneInput: string): string {
-  if (!phoneInput) return "phone.eq.invalid";
+  if (!phoneInput) return 'phone.eq."invalid"';
   
   const clean = phoneInput.replace(/\D/g, "");
   const clean10 = clean.slice(-10);
   if (!clean10) {
-    return `phone.eq.${phoneInput}`;
+    return `phone.eq."${phoneInput}"`;
   }
 
   const area = clean10.slice(0, 3);
   const prefix = clean10.slice(3, 6);
   const line = clean10.slice(6);
 
-  const v1 = clean10;                     
-  const v2 = `(${area}) ${prefix}-${line}`; 
-  const v3 = `(${area})${prefix}-${line}`;  
-  const v4 = `${area}-${prefix}-${line}`;   
-  const v5 = `${area} ${prefix} ${line}`;   
-  const v6 = `+1${clean10}`;                
-  const v7 = `1${clean10}`;                 
+  const formats = [
+    clean10,
+    `+1${clean10}`,
+    `1${clean10}`,
+    `(${area}) ${prefix}-${line}`,
+    `(${area})${prefix}-${line}`,
+    `${area}-${prefix}-${line}`,
+    `${area} ${prefix} ${line}`,
+    `${area}.${prefix}.${line}`,
+  ];
 
-  return `phone.eq.${v1},phone.eq.${v2},phone.eq.${v3},phone.eq.${v4},phone.eq.${v5},phone.eq.${v6},phone.eq.${v7},phone.ilike.%${clean10}%`;
+  const eqClauses = formats.map(f => `phone.eq."${f}"`).join(",");
+  const ilikeClause = `phone.ilike."%${clean10}%",phone.ilike."%${area}%${prefix}%${line}%"`;
+
+  return `${eqClauses},${ilikeClause}`;
 }
 
 export async function saveConversation(
