@@ -11,6 +11,19 @@ const platform =
 
 let isLoggedIn = false;
 
+// Emma works on the MAIN company number. 452-1900 (old main) is kept as a legacy line
+// until everything is migrated. Both numbers belong to extension 102 (David Cai).
+export const PRIMARY_SMS_NUMBER = "+18085287177";
+export const LEGACY_SMS_NUMBERS = ["+18084521900"];
+export const EMMA_SMS_NUMBERS = [PRIMARY_SMS_NUMBER, ...LEGACY_SMS_NUMBERS];
+
+/** Pick which clinic number to reply from: the one the patient texted, else the main number. */
+export function resolveSenderNumber(clinicNumber?: string | null): string {
+  const clean10 = (clinicNumber || "").replace(/\D/g, "").slice(-10);
+  const match = EMMA_SMS_NUMBERS.find(n => n.slice(-10) === clean10);
+  return match || PRIMARY_SMS_NUMBER;
+}
+
 async function ensureLogin() {
   if (isLoggedIn) {
     return;
@@ -30,9 +43,11 @@ async function ensureLogin() {
 
 export async function sendSMS(
   to: string,
-  text: string
+  text: string,
+  fromNumber?: string
 ) {
   await ensureLogin();
+  const from = resolveSenderNumber(fromNumber);
 
   let phone = to.replace(/\D/g, "");
 
@@ -44,12 +59,12 @@ export async function sendSMS(
 
   // If text is within 1000 characters, send directly
   if (text.length <= 1000) {
-    console.log("SENDING SMS TO:", phone, `(${text.length} chars)`);
+    console.log("SENDING SMS TO:", phone, "FROM:", from, `(${text.length} chars)`);
     const resp = await platform.post(
       "/restapi/v1.0/account/~/extension/~/sms",
       {
         from: {
-          phoneNumber: process.env.RINGCENTRAL_PHONE_NUMBER,
+          phoneNumber: from,
         },
         to: [
           {
@@ -103,7 +118,7 @@ export async function sendSMS(
       "/restapi/v1.0/account/~/extension/~/sms",
       {
         from: {
-          phoneNumber: process.env.RINGCENTRAL_PHONE_NUMBER,
+          phoneNumber: from,
         },
         to: [
           {
@@ -121,16 +136,33 @@ export async function sendSMS(
 }
 
 export async function getMessage(
-  messageId: string
+  messageId: string,
+  extensionId?: string | number
 ) {
   await ensureLogin();
 
-  const resp =
-    await platform.get(
+  const ext = extensionId ? String(extensionId) : "~";
+  try {
+    const resp = await platform.get(
+      `/restapi/v1.0/account/~/extension/${ext}/message-store/${messageId}`
+    );
+    return await resp.json();
+  } catch (err) {
+    if (ext === "~") throw err;
+    // Fallback to the logged-in extension (102)
+    const resp = await platform.get(
       `/restapi/v1.0/account/~/extension/~/message-store/${messageId}`
     );
+    return await resp.json();
+  }
+}
 
-  return await resp.json();
+async function getAllExtensionFilters(): Promise<string[]> {
+  const extRes = await platform.get("/restapi/v1.0/account/~/extension", { perPage: 100 });
+  const extData = await extRes.json();
+  return (extData.records || [])
+    .filter((e: any) => e.status === "Enabled")
+    .map((e: any) => `/restapi/v1.0/account/~/extension/${e.id}/message-store`);
 }
 
 export async function checkAndRenewSubscription() {
@@ -152,6 +184,19 @@ export async function checkAndRenewSubscription() {
       r.status === "Active"
     );
 
+    const allFilters = await getAllExtensionFilters();
+
+    // If the active subscription only covers a subset of extensions, rebuild it to cover all numbers
+    if (existingSub && (existingSub.eventFilters || []).length < allFilters.length) {
+      console.log(`[RingCentral] Subscription ${existingSub.id} covers ${existingSub.eventFilters?.length} of ${allFilters.length} extensions. Updating filters...`);
+      const updResp = await platform.put(`/restapi/v1.0/subscription/${existingSub.id}`, {
+        eventFilters: allFilters,
+        deliveryMode: { transportType: "WebHook", address: webhookUrl },
+      });
+      const upd = await updResp.json();
+      return { success: true, action: "updated_filters", id: upd.id, expiresAt: upd.expirationTime };
+    }
+
     if (existingSub) {
       console.log(`[RingCentral] Found active subscription: ${existingSub.id}, expires at ${existingSub.expirationTime}`);
       // Check if it's expiring soon (within 24 hours). If so, renew it.
@@ -170,9 +215,7 @@ export async function checkAndRenewSubscription() {
     } else {
       console.log("[RingCentral] No active subscription found for our webhook URL. Creating a new one...");
       const createResp = await platform.post("/restapi/v1.0/subscription", {
-        eventFilters: [
-          "/restapi/v1.0/account/~/extension/~/message-store"
-        ],
+        eventFilters: allFilters,
         deliveryMode: {
           transportType: "WebHook",
           address: webhookUrl

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sendSMS, getMessage } from "@/lib/ringcentral";
+import { sendSMS, getMessage, resolveSenderNumber } from "@/lib/ringcentral";
 import { saveConversation, getConversationHistory, formatPhoneE164, getPhoneFilter } from "@/lib/conversation";
 import { generateEmmaResponse } from "@/lib/emma";
 import { supabase } from "@/lib/supabase";
@@ -37,7 +37,8 @@ export async function POST(req: NextRequest) {
 
     console.log("MESSAGE ID:", messageId);
 
-    const sms = await getMessage(String(messageId));
+    const ownerExtId = body?.body?.extensionId || body?.ownerId;
+    const sms = await getMessage(String(messageId), ownerExtId);
 
     const direction = sms.direction || "Inbound";
     const rawPhone = direction === "Inbound"
@@ -45,6 +46,8 @@ export async function POST(req: NextRequest) {
       : (sms.to?.[0]?.phoneNumber || "");
     const phone = formatPhoneE164(rawPhone);
     const message = sms.subject || sms.text || "";
+    // Reply from the clinic number the patient texted (528-7177 main, or legacy 452-1900)
+    const replyFrom = resolveSenderNumber(direction === "Inbound" ? sms.to?.[0]?.phoneNumber : sms.from?.phoneNumber);
 
     const cleanPhone = phone.replace(/\D/g, "");
     const cleanPhone10 = cleanPhone.slice(-10);
@@ -56,7 +59,7 @@ export async function POST(req: NextRequest) {
       console.log(`[Boss Interceptor] Dr. Cai texted Emma: "${message}"`);
       await saveConversation(phone, "user", message);
       const reply = await handleBossConversation(message, phone);
-      await sendSMS(phone, reply);
+      await sendSMS(phone, reply, replyFrom);
       await saveConversation(phone, "assistant", reply);
       return NextResponse.json({
         success: true,
@@ -281,7 +284,7 @@ export async function POST(req: NextRequest) {
       }
 
       const optOutReply = "You have successfully opted out. We will not send you any more automated messages. Text START to resume.";
-      await sendSMS(phone, optOutReply);
+      await sendSMS(phone, optOutReply, replyFrom);
       await saveConversation(phone, "assistant", optOutReply);
 
       return NextResponse.json({ success: true, optedOut: true });
@@ -574,7 +577,7 @@ export async function POST(req: NextRequest) {
         : `Received! ${patientName !== "Patient" ? `${patientName}, I` : "I"} have received your pictures and forwarded them to our office staff. Someone will verify your details and contact you shortly. If you have any questions, feel free to call us at 808-528-7177.`;
 
       // Send to patient
-      await sendSMS(phone, humanMessage);
+      await sendSMS(phone, humanMessage, replyFrom);
       await saveConversation(phone, "assistant", humanMessage);
 
       // Notify the doctor
@@ -949,7 +952,7 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
     }
 
     // 10. Send SMS and save conversation
-    await sendSMS(phone, finalReply);
+    await sendSMS(phone, finalReply, replyFrom);
     await saveConversation(phone, "assistant", finalReply);
 
     // 11. If the intent is TRANSFER_TO_HUMAN or UNKNOWN (fallback cases), notify the doctor
