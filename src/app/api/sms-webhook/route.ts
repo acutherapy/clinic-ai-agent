@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
       console.log(`[Boss Interceptor] Dr. Cai texted Emma: "${message}"`);
       await saveConversation(phone, "user", message);
       const reply = await handleBossConversation(message, phone);
-      await sendSMS(phone, reply, replyFrom);
+      await sendSMS(phone, reply); // Boss channel always uses main number 528-7177
       await saveConversation(phone, "assistant", reply);
       return NextResponse.json({
         success: true,
