@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { sendSMS } from "@/lib/ringcentral";
 import { saveConversation, getConversationHistory, getPhoneFilter } from "@/lib/conversation";
 import { generateEmmaResponse } from "@/lib/emma";
+import { internalFetch } from "@/lib/internal-fetch";
 
 export async function GET() {
   try {
@@ -129,7 +130,7 @@ export async function POST(req: NextRequest) {
     // Fetch slots dynamically if none are provided
     let availableSlots: string[] = [];
     try {
-      const slotsResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots`);
+      const slotsResponse = await internalFetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots`);
       const slotsResult = await slotsResponse.json();
       availableSlots = slotsResult.slots || [];
     } catch (err) {
@@ -141,8 +142,6 @@ export async function POST(req: NextRequest) {
       conversationHistory,
       intent: "KB_QUESTION",
       language: language || "English",
-      kbAnswer: knowledge || "",
-      kbUrl: url || "",
       availableSlots,
       phone,
     });
