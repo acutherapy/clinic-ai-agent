@@ -3,6 +3,7 @@ import { sendSMS, getMessage, resolveSenderNumber } from "@/lib/ringcentral";
 import { saveConversation, getConversationHistory, formatPhoneE164, getPhoneFilter } from "@/lib/conversation";
 import { generateEmmaResponse } from "@/lib/emma";
 import { supabase } from "@/lib/supabase";
+import { internalFetch } from "@/lib/internal-fetch";
 import { handleBossConversation } from "@/lib/boss-agent";
 
 const DR_CAI_PHONE = "+18083083879";
@@ -710,7 +711,7 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
           const leadLocation = (existingLeadCheck?.location || "Liliha").toLowerCase();
           const targetLocation = leadLocation.includes("aiea") ? "Aiea Clinic" : "Liliha Clinic";
 
-          const rescheduleResponse = await fetch(
+          const rescheduleResponse = await internalFetch(
             `${process.env.NEXT_PUBLIC_SITE_URL}/api/reschedule-appointment`,
             {
               method: "POST",
@@ -752,7 +753,7 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
       }
     } else if (bookingResult.intent === "CANCEL_APPOINTMENT") {
       try {
-        const cancelResponse = await fetch(
+        const cancelResponse = await internalFetch(
           `${process.env.NEXT_PUBLIC_SITE_URL}/api/cancel-appointment`,
           {
             method: "POST",
@@ -796,8 +797,13 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
       "AVAILABILITY_QUESTION",
       "NEW_LEAD_OUTREACH"
     ];
-    const needsSlots = bookingIntents.includes(bookingResult.intent) || 
-                       ["KB_ANSWER", "INSURANCE_QUESTION", "SERVICE_QUESTION", "PRICE_QUESTION"].includes(bookingResult.intent);
+    const needsSlots =
+      bookingIntents.includes(bookingResult.intent) ||
+      [
+        "KB_ANSWER", "KB_QUESTION", "CLINIC_INFO_QUESTION", "BUSINESS_HOURS_QUESTION",
+        "LOCATION_QUESTION", "INSURANCE_QUESTION", "SERVICE_QUESTION",
+        "PRICE_QUESTION", "NEW_PATIENT_QUESTION",
+      ].includes(bookingResult.intent);
 
     let availableSlots: string[] = [];
     if (needsSlots) {
@@ -809,7 +815,7 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
           ? `${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots?day=${bookingResult.day}&location=${locationParam}`
           : `${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots?location=${locationParam}`;
         
-        const slotsResponse = await fetch(slotsUrl);
+        const slotsResponse = await internalFetch(slotsUrl);
         const slotsResult = await slotsResponse.json();
         availableSlots = slotsResult.slots || [];
       } catch (err) {
@@ -817,79 +823,7 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
       }
     }
 
-    // 6. Query knowledge base if user has general/informational question (RAG - Class B only)
-    let kbAnswer = "";
-    let kbUrl = "";
-    const kbIntents = [
-      "KB_QUESTION",
-      "CLINIC_INFO_QUESTION",
-      "BUSINESS_HOURS_QUESTION",
-      "LOCATION_QUESTION",
-      "PRICE_QUESTION",
-      "INSURANCE_QUESTION",
-      "SERVICE_QUESTION",
-      "NEW_PATIENT_QUESTION",
-    ];
-
-    if (bookingResult.intent === "KB_ANSWER") {
-      kbAnswer = bookingResult.answer || "";
-      kbUrl = bookingResult.url || "";
-    } else if (kbIntents.includes(bookingResult.intent)) {
-      try {
-        const kbResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_SITE_URL}/api/search-kb`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              question: message,
-            }),
-          }
-        );
-
-        const kbResult = await kbResponse.json();
-        if (kbResult.found) {
-          kbAnswer = kbResult.answer || "";
-          kbUrl = kbResult.url || "";
-        }
-      } catch (err) {
-        console.error("KB Search failed:", err);
-      }
-    }
-
-    // 6b. Secondary check: If no webpage URL is retrieved yet, but the user message mentions a disease/symptom/treatment, query search-kb specifically to fetch a webpage URL
-    const diseaseKeywordsRegex = /(pain|sciatica|headache|migraine|stress|anxiety|insomnia|injury|shoulder|neck|back|knee|arthritis|痛|酸|失眠|压力|受伤|拔罐|cupping)/i;
-    if (!kbUrl && diseaseKeywordsRegex.test(message)) {
-      try {
-        console.log(`Disease keyword detected in message: "${message}". Fetching URL fallback.`);
-        const kbResponse = await fetch(
-          `${process.env.NEXT_PUBLIC_SITE_URL}/api/search-kb`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              question: message,
-            }),
-          }
-        );
-
-        const kbResult = await kbResponse.json();
-        if (kbResult.found && kbResult.url) {
-          kbUrl = kbResult.url;
-          if (!kbAnswer) {
-            kbAnswer = kbResult.answer || "";
-          }
-        }
-      } catch (err) {
-        console.error("Secondary disease URL lookup failed:", err);
-      }
-    }
-
-    // 7. Fetch conversation history for assistant reply generation context
+    // 6. Fetch conversation history for assistant reply generation context
     const conversationHistory = phone ? await getConversationHistory(phone, 6) : [];
 
     // 8. Generate response (use hardcoded template for successful booking/rescheduling to match the user's specific layout)
@@ -932,8 +866,6 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
         intent: bookingResult.intent,
         language: bookingResult.language || "English",
         actionResult,
-        kbAnswer,
-        kbUrl,
         availableSlots,
         phone,
       });

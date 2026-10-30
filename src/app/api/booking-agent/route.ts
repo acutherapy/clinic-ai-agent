@@ -78,6 +78,8 @@ English, Chinese, Spanish, Japanese, Korean. Detect and return the language name
 - Never assume AM or PM unless stated.
 - Only classify as CANCEL_APPOINTMENT or RESCHEDULE_APPOINTMENT if the customer EXPLICITLY requests to cancel or reschedule (e.g. "cancel my appointment", "reschedule", "change my time").
 - If they just state they cannot come (e.g. "I can't make it", "I'm sick") or ask a question about cancellations (e.g. "So, you cancelling today?"), do NOT classify as CANCEL_APPOINTMENT or RESCHEDULE_APPOINTMENT. Instead, classify as TRANSFER_TO_HUMAN so staff can manage them.
+- If the customer is rejecting proposed appointment times (e.g. "Unfortunately no", "Those times don't work", "No I can't", "Any other times?"), classify as AVAILABILITY_QUESTION so Emma can offer alternative slots. Do NOT classify as TRANSFER_TO_HUMAN.
+- If the customer asks why they cannot book or why there is no availability (e.g. "Why can't I book", "Why is there no availability", "Why is Liliha closed"), classify as KB_QUESTION. Do NOT classify as TRANSFER_TO_HUMAN.
 - Output ONLY the JSON block. Do not include markdown codeblocks.
 
 ========================================
