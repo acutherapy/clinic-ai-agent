@@ -12,6 +12,7 @@ import { runTests as runInternalFetch }  from "./test-internal-fetch.js";
 import { runTests as runStructuredSlots } from "./test-structured-slots.js";
 import { runTests as runIdempotency }    from "./test-idempotency.js";
 import { runTests as runApptSelection }  from "./test-appointment-selection.js";
+import { runTests as runBookingSafety }  from "./test-booking-safety.js";
 
 async function main() {
   console.log("=".repeat(60));
@@ -25,6 +26,7 @@ async function main() {
     { name: "structured-slots",    fn: runStructuredSlots },
     { name: "idempotency",         fn: runIdempotency },
     { name: "appointment-selection", fn: runApptSelection },
+    { name: "booking-safety",      fn: runBookingSafety },
   ];
 
   let totalPassed = 0;
