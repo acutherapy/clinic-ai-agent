@@ -103,10 +103,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Outbound Interceptor: Simply log outbound messages to conversation history
+    // Outbound Interceptor: log outbound messages; detect human takeover
     if (direction !== "Inbound") {
       console.log(`[Outbound SMS] Sent to patient: ${phone} - "${message}"`);
-      
+
       if (phone && message) {
         const { data: lastLogged } = await supabase
           .from("sms_conversations")
@@ -116,8 +116,16 @@ export async function POST(req: NextRequest) {
           .order("created_at", { ascending: false })
           .limit(1);
 
-        if (!lastLogged || lastLogged.length === 0 || lastLogged[0].message !== message) {
+        const isEmmaMessage = lastLogged && lastLogged.length > 0 && lastLogged[0].message === message;
+
+        if (!isEmmaMessage) {
+          // Staff manually replied — save to history and pause Emma for 6 hours
           await saveConversation(phone, "assistant", message);
+          await supabase
+            .from("leads")
+            .update({ pause_emma: true, human_takeover_at: new Date().toISOString() })
+            .or(getPhoneFilter(phone));
+          console.log(`[Human Takeover] Staff manually replied to ${phone}. Emma paused.`);
         }
       }
 
@@ -223,6 +231,16 @@ export async function POST(req: NextRequest) {
         existingLeadCheck = dbLead;
         isOptedOut = dbLead.is_opted_out || dbLead.status === "OPTED_OUT";
         isEmmaPaused = !!dbLead.pause_emma;
+
+        // Auto-resume after 6-hour human takeover cooldown
+        if (isEmmaPaused && dbLead.human_takeover_at) {
+          const hoursSinceTakeover = (Date.now() - new Date(dbLead.human_takeover_at).getTime()) / 3600000;
+          if (hoursSinceTakeover > 6) {
+            isEmmaPaused = false;
+            supabase.from("leads").update({ pause_emma: false, human_takeover_at: null }).eq("id", dbLead.id).then(() => {});
+            console.log(`[Human Takeover] 6-hour cooldown expired for ${phone}. Emma resumed.`);
+          }
+        }
       }
     } catch (lookupErr) {
       console.error("Error looking up lead for opt-out check:", lookupErr);
