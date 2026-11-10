@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { internalFetch } from "@/lib/internal-fetch";
 
 export async function GET(req: NextRequest) {
   try {
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
     for (const row of data) {
       console.log(`Generating times for ${row.patient_name}`);
 
-      const response = await fetch(
+      const response = await internalFetch(
         `${protocol}://${host}/api/find-slots`
       );
 

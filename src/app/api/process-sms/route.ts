@@ -5,6 +5,7 @@ import { sendSMS } from "@/lib/ringcentral";
 import {
   saveConversation,
 } from "@/lib/conversation";
+import { internalFetch } from "@/lib/internal-fetch";
 
 export async function GET() {
 
@@ -99,7 +100,7 @@ bookingResult.intent ===
 ) {
 
 const slotsResponse =
-await fetch(
+await internalFetch(
 `${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots?day=${bookingResult.day}`
 );
 
@@ -244,7 +245,7 @@ continue;
       ) {
 
         const slotsResponse =
-          await fetch(
+          await internalFetch(
             `${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots`
           );
 
@@ -335,7 +336,7 @@ Reply with the time that works best.
   );
 
   const rescheduleResponse =
-    await fetch(
+    await internalFetch(
       `${process.env.NEXT_PUBLIC_SITE_URL}/api/reschedule-appointment`,
       {
         method: "POST",
@@ -378,7 +379,7 @@ Reply with the time that works best.
 ) {
 
   const slotsResponse =
-    await fetch(
+    await internalFetch(
       `${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots`
     );
 
@@ -444,7 +445,7 @@ Would either of these work?
 ) {
 
   const cancelResponse =
-    await fetch(
+    await internalFetch(
       `${process.env.NEXT_PUBLIC_SITE_URL}/api/cancel-appointment`,
       {
         method: "POST",

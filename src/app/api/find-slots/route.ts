@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { calendar } from "@/lib/google";
+import { checkInternalKey } from "@/lib/require-internal-key";
 
 const AI_CALENDAR_ID =
   "46d7671d8624d3f9f0c685943921309a7d1801a2ae584906b21ea114282206ff@group.calendar.google.com";
@@ -28,6 +29,29 @@ type Candidate = {
   startTime: string;
 };
 
+/** Structured slot — safe for Voice Emma to use as booking input without date parsing. */
+export type StructuredSlot = {
+  slotId: string;       // ISO datetime — stable identifier for this exact slot
+  date: string;         // "YYYY-MM-DD" — never derived from label
+  hour: number;         // 0–23 integer
+  label: string;        // human-readable for TTS
+  location: string;     // "liliha" | "aiea"
+  locationDisplay: string; // "Liliha Clinic" | "Aiea Clinic"
+};
+
+/** Build structured slot from a candidate. Date/hour come from computed values, not label parsing. */
+export function buildStructuredSlot(candidate: Candidate, location: string): StructuredSlot {
+  const isAiea = location.toLowerCase().includes("aiea");
+  return {
+    slotId:          candidate.startTime,
+    date:            candidate.dateKey,
+    hour:            candidate.hour,
+    label:           candidate.text,
+    location:        isAiea ? "aiea" : "liliha",
+    locationDisplay: isAiea ? "Aiea Clinic" : "Liliha Clinic",
+  };
+}
+
 // Clinic hours rules
 const CLINIC_RULES = {
   liliha: {
@@ -39,12 +63,19 @@ const CLINIC_RULES = {
   aiea: {
     hoursWeekday: [9, 10, 11, 12, 13, 14, 15, 16], // 9am to 5pm (last slot 4pm)
     hoursSaturday: [9, 10, 11, 12, 13, 14, 15, 16],
-    businessDays: [1, 2, 3, 4, 5, 6], // Mon-Sat (Added Monday 9am-5pm)
-    capacity: 1, // Max 1 customer per hour across all treatments
+    businessDays: [1, 2, 3, 4, 5, 6], // Mon-Sat
+    capacity: 1,
   }
 };
 
+// Liliha maintenance closure: Nov 16 – Dec 6, 2026
+const LILIHA_CLOSURE_START = "2026-11-16";
+const LILIHA_CLOSURE_END   = "2026-12-06";
+
 export async function GET(req: NextRequest) {
+  const denied = checkInternalKey(req);
+  if (denied) return denied;
+
   try {
     const requestedDay = req.nextUrl.searchParams.get("day");
     const location = (req.nextUrl.searchParams.get("location") || "liliha").toLowerCase();
@@ -98,11 +129,9 @@ export async function GET(req: NextRequest) {
     // Filter relevant events for the selected clinic
     let relevantEvents: any[] = [];
     if (isAiea) {
-      // For Aiea, keep all events on the Aiea clinic calendar, plus Aiea-flagged events on the AI calendar
       const relevantAi = rawAiEvents.filter(isAieaEvent);
       relevantEvents = [...rawClinicEvents, ...relevantAi];
     } else {
-      // For Liliha, keep all events on Liliha clinic calendar, plus non-Aiea events on the AI calendar
       const relevantAi = rawAiEvents.filter(e => !isAieaEvent(e));
       relevantEvents = [...rawClinicEvents, ...relevantAi];
     }
@@ -112,18 +141,15 @@ export async function GET(req: NextRequest) {
       const overlappingEvents = relevantEvents.filter((event) => {
         const eventStart = new Date(event.start?.dateTime || event.start?.date || "");
         const eventEnd = new Date(event.end?.dateTime || event.end?.date || "");
-        // Overlap formula: eventStart < slotEnd and eventEnd > slotStart
         return eventStart < slotEnd && eventEnd > slotStart;
       });
 
       if (isAiea) {
-        // Aiea clinic limit is 1 client across all services
         return {
           available: overlappingEvents.length < CLINIC_RULES.aiea.capacity,
           currentCount: overlappingEvents.length,
         };
       } else {
-        // Liliha clinic checks acupuncture capacity (max 2)
         const acupunctureEvents = overlappingEvents.filter(event => {
           const title = (event.summary || "").toLowerCase();
           return title.includes("acupuncture");
@@ -138,27 +164,25 @@ export async function GET(req: NextRequest) {
     // Iterate through the 45-day window starting from tomorrow
     for (let d = 1; d <= 45; d++) {
       const day = new Date(nowHonolulu.getTime() + d * 24 * 60 * 60 * 1000);
-      const dayOfWeek = day.getUTCDay(); // Safe UTC-based day value since shifted
+      const dayOfWeek = day.getUTCDay();
 
-      // If a specific day was requested (e.g. "Monday"), skip other days
       if (requestedDay) {
         const targetDay = DAY_MAP[requestedDay];
-        if (dayOfWeek !== targetDay) {
-          continue;
-        }
+        if (dayOfWeek !== targetDay) continue;
       }
 
-      // Check if this day is a business day for the clinic
-      if (!rules.businessDays.includes(dayOfWeek)) {
-        continue;
-      }
+      if (!rules.businessDays.includes(dayOfWeek)) continue;
+
+      const yyyy = day.getUTCFullYear();
+      const mm = String(day.getUTCMonth() + 1).padStart(2, "0");
+      const dd = String(day.getUTCDate()).padStart(2, "0");
+      const dateKey = `${yyyy}-${mm}-${dd}`;
+
+      if (!isAiea && dateKey >= LILIHA_CLOSURE_START && dateKey <= LILIHA_CLOSURE_END) continue;
 
       const hours = dayOfWeek === 6 ? rules.hoursSaturday : rules.hoursWeekday;
 
       for (const hour of hours) {
-        const yyyy = day.getUTCFullYear();
-        const mm = String(day.getUTCMonth() + 1).padStart(2, "0");
-        const dd = String(day.getUTCDate()).padStart(2, "0");
         const hh = String(hour).padStart(2, "0");
 
         const startTime = `${yyyy}-${mm}-${dd}T${hh}:00:00-10:00`;
@@ -180,7 +204,7 @@ export async function GET(req: NextRequest) {
           candidates.push({
             text: display,
             currentCount: capResult.currentCount,
-            dateKey: `${yyyy}-${mm}-${dd}`,
+            dateKey,
             hour,
             startTime,
           });
@@ -189,22 +213,20 @@ export async function GET(req: NextRequest) {
     }
 
     if (candidates.length === 0) {
-      return NextResponse.json({
-        slots: [],
-      });
+      return NextResponse.json({ slots: [], structured: [] });
     }
 
     if (requestedDay) {
       const firstDate = candidates[0]?.dateKey;
-      if (!firstDate) {
-        return NextResponse.json({ slots: [] });
-      }
+      if (!firstDate) return NextResponse.json({ slots: [], structured: [] });
 
       const sameDay = candidates.filter((c) => c.dateKey === firstDate);
       sameDay.sort((a, b) => a.hour - b.hour);
+      const sliced = sameDay.slice(0, 2);
 
       return NextResponse.json({
-        slots: sameDay.slice(0, 2).map((s) => s.text),
+        slots:      sliced.map((s) => s.text),
+        structured: sliced.map((s) => buildStructuredSlot(s, location)),
       });
     }
 
@@ -215,7 +237,7 @@ export async function GET(req: NextRequest) {
 
     const selected: Candidate[] = [];
 
-    // First pass: try to get up to 8 slots that are at least 2 days apart
+    // First pass: up to 8 slots at least 2 days apart
     for (const candidate of candidates) {
       if (selected.length === 0) {
         selected.push(candidate);
@@ -233,17 +255,13 @@ export async function GET(req: NextRequest) {
         selected.push(candidate);
       }
 
-      if (selected.length >= 8) {
-        break;
-      }
+      if (selected.length >= 8) break;
     }
 
-    // Second pass: if we have fewer than 6 slots, try to add other slots that are at least 1 day apart
+    // Second pass: fill to 6 with slots at least 1 day apart
     if (selected.length < 6) {
       for (const candidate of candidates) {
-        if (selected.some((s) => s.startTime === candidate.startTime)) {
-          continue;
-        }
+        if (selected.some((s) => s.startTime === candidate.startTime)) continue;
 
         const temp = [...selected, candidate].sort(
           (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
@@ -258,9 +276,7 @@ export async function GET(req: NextRequest) {
           const diffDays = Math.round(
             Math.abs(d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24)
           );
-          if (diffDays < 1 || candidate.hour === prev.hour) {
-            compatible = false;
-          }
+          if (diffDays < 1 || candidate.hour === prev.hour) compatible = false;
         }
 
         if (idx < temp.length - 1) {
@@ -270,9 +286,7 @@ export async function GET(req: NextRequest) {
           const diffDays = Math.round(
             Math.abs(d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24)
           );
-          if (diffDays < 1 || candidate.hour === next.hour) {
-            compatible = false;
-          }
+          if (diffDays < 1 || candidate.hour === next.hour) compatible = false;
         }
 
         if (compatible) {
@@ -282,25 +296,19 @@ export async function GET(req: NextRequest) {
           );
         }
 
-        if (selected.length >= 8) {
-          break;
-        }
+        if (selected.length >= 8) break;
       }
     }
 
     return NextResponse.json({
-      slots: selected.map((s) => s.text),
+      slots:      selected.map((s) => s.text),
+      structured: selected.map((s) => buildStructuredSlot(s, location)),
     });
   } catch (err: any) {
     console.error("FIND SLOTS ERROR:", err);
     return NextResponse.json(
-      {
-        success: false,
-        error: err.message,
-      },
-      {
-        status: 500,
-      }
+      { success: false, error: err.message },
+      { status: 500 }
     );
   }
 }

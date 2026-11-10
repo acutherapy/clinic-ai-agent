@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { sendSMS, checkAndRenewSubscription } from "@/lib/ringcentral";
 import { calendar } from "@/lib/google";
 import { openai } from "@/lib/openai";
+import { internalFetch } from "@/lib/internal-fetch";
 import { syncAllActiveReferrals } from "@/lib/referral";
 import { generateEmmaResponse } from "@/lib/emma";
 import { saveConversation } from "@/lib/conversation";
@@ -339,7 +340,7 @@ If no new valid clinic-related questions or local terms are found, output exactl
       if (activeReferrals && activeReferrals.length > 0) {
         let slots: string[] = [];
         try {
-          const slotsResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots`);
+          const slotsResponse = await internalFetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots`);
           const slotsResult = await slotsResponse.json();
           slots = slotsResult.slots || [];
         } catch (err) {

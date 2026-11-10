@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { internalFetch } from "@/lib/internal-fetch";
 
 export async function POST(
 req: NextRequest
@@ -121,7 +122,7 @@ if (
 }
 
 const response =
-  await fetch(
+  await internalFetch(
     `${process.env.NEXT_PUBLIC_SITE_URL}/api/create-appointment`,
     {
       method: "POST",

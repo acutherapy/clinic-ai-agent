@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { saveConversation, getPhoneFilter } from "@/lib/conversation";
 import { generateEmmaResponse } from "@/lib/emma";
 import { supabaseDashboard } from "@/lib/supabase-dashboard";
+import { internalFetch } from "@/lib/internal-fetch";
 
 async function syncReferralToLeadsAndCases(record: any) {
   const {
@@ -265,7 +266,7 @@ async function syncReferralToLeadsAndCases(record: any) {
           insurer: referral_class || "TriWest VA CCN",
           patient_name: patient_name,
           subscriber_number: referral_number || "",
-          status: "active",
+          status: "Waiting for schedule",
           end_date: referral_end_date || null,
           number_of_treatments: total_authorized_visits || 12,
           remaining_sessions: total_authorized_visits || 12,
@@ -387,7 +388,7 @@ export async function POST(req: NextRequest) {
     // 2. Fetch available slots dynamically
     let slots: string[] = [];
     try {
-      const slotsResponse = await fetch(
+      const slotsResponse = await internalFetch(
         `${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots`
       );
       const slotsResult = await slotsResponse.json();

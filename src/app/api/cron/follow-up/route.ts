@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { sendSMS } from "@/lib/ringcentral";
 import { generateEmmaResponse } from "@/lib/emma";
 import { saveConversation, getConversationHistory } from "@/lib/conversation";
+import { internalFetch } from "@/lib/internal-fetch";
 
 export async function GET(req: NextRequest) {
   try {
@@ -48,7 +49,7 @@ export async function GET(req: NextRequest) {
     // Fetch available slots from find-slots API
     let availableSlots: string[] = [];
     try {
-      const slotsResponse = await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots`);
+      const slotsResponse = await internalFetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots`);
       const slotsResult = await slotsResponse.json();
       availableSlots = slotsResult.slots || [];
     } catch (err) {
