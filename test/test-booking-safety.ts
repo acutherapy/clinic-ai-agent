@@ -12,6 +12,9 @@ import {
   normalizeService,
   isLilihaClosurePeriod,
   validateBookingFields,
+  validateSlotTime,
+  shouldAlertStaff,
+  buildReferralAlerts,
 } from "../src/lib/booking-utils.js";
 
 function isLilihaBlocked(location: string, slotDate: string): boolean {
@@ -138,6 +141,135 @@ export async function runTests() {
         serviceType:  "Acupuncture",
       });
       assert.strictEqual(errs.length, 0);
+    }),
+
+    // ── validateSlotTime ──────────────────────────────────────────────────────
+
+    ok("slot: Liliha weekday 9 AM is valid", () => {
+      assert.strictEqual(validateSlotTime("9", "Monday", "Liliha Clinic"), null);
+    }),
+    ok("slot: Liliha weekday 12 PM (noon) is valid", () => {
+      assert.strictEqual(validateSlotTime("12", "Friday", "Liliha Clinic"), null);
+    }),
+    ok("slot: Liliha Saturday 11 AM is valid", () => {
+      assert.strictEqual(validateSlotTime("11", "Saturday", "Liliha Clinic"), null);
+    }),
+    ok("slot: Liliha Saturday 12 PM is NOT valid (closed at noon)", () => {
+      assert.strictEqual(validateSlotTime("12", "Saturday", "Liliha Clinic"), "HOUR_NOT_APPROVED");
+    }),
+    ok("slot: Liliha weekday 8 AM is NOT valid", () => {
+      assert.strictEqual(validateSlotTime("8", "Monday", "Liliha Clinic"), "HOUR_NOT_APPROVED");
+    }),
+    ok("slot: Liliha weekday 13 (1 PM) is NOT valid for Liliha", () => {
+      assert.strictEqual(validateSlotTime("13", "Monday", "Liliha Clinic"), "HOUR_NOT_APPROVED");
+    }),
+    ok("slot: Aiea weekday 13 PM is valid", () => {
+      assert.strictEqual(validateSlotTime("13", "Monday", "Aiea Clinic"), null);
+    }),
+    ok("slot: Aiea weekday 16 (4 PM) is valid", () => {
+      assert.strictEqual(validateSlotTime("16", "Tuesday", "Aiea Clinic"), null);
+    }),
+    ok("slot: Aiea weekday 17 (5 PM) is NOT valid", () => {
+      assert.strictEqual(validateSlotTime("17", "Tuesday", "Aiea Clinic"), "HOUR_NOT_APPROVED");
+    }),
+    ok("slot: Sunday is rejected (clinic closed)", () => {
+      assert.strictEqual(validateSlotTime("9", "Sunday", "Liliha Clinic"), "CLINIC_CLOSED_SUNDAY");
+    }),
+    ok("slot: partial hour 8:30 is rejected", () => {
+      assert.strictEqual(validateSlotTime("8:30", "Monday", "Liliha Clinic"), "PARTIAL_HOUR");
+    }),
+    ok("slot: partial hour 9:30 is rejected even if within hours range", () => {
+      assert.strictEqual(validateSlotTime("9:30", "Monday", "Liliha Clinic"), "PARTIAL_HOUR");
+    }),
+    ok("slot: '9:00' (explicit :00) is accepted as valid", () => {
+      assert.strictEqual(validateSlotTime("9:00", "Monday", "Liliha Clinic"), null);
+    }),
+    ok("slot: numeric 9 (not string) is accepted", () => {
+      assert.strictEqual(validateSlotTime(9, "Monday", "Liliha Clinic"), null);
+    }),
+    ok("slot: invalid day string is rejected", () => {
+      assert.strictEqual(validateSlotTime("9", "Funday", "Liliha Clinic"), "INVALID_DAY");
+    }),
+    ok("slot: NaN time is rejected", () => {
+      assert.strictEqual(validateSlotTime("abc", "Monday", "Liliha Clinic"), "INVALID_TIME");
+    }),
+
+    // ── shouldAlertStaff ─────────────────────────────────────────────────────
+
+    ok("alert: notify when no pending flag and no recent alert", () => {
+      assert.strictEqual(shouldAlertStaff(false, false), true);
+    }),
+    ok("alert: suppress when leads record already marked pending", () => {
+      assert.strictEqual(shouldAlertStaff(true, false), false);
+    }),
+    ok("alert: suppress when recent conversation marker exists", () => {
+      assert.strictEqual(shouldAlertStaff(false, true), false);
+    }),
+    ok("alert: suppress when both flags set", () => {
+      assert.strictEqual(shouldAlertStaff(true, true), false);
+    }),
+
+    // ── buildReferralAlerts ───────────────────────────────────────────────────
+
+    ok("referral: low-balance alert fires at 2 visits left", () => {
+      const { lowBalance } = buildReferralAlerts([
+        { patient_name: "Jane Doe", phone: "+18085550001", total_authorized_visits: 10, used_visits: 8, referral_end_date: "2027-06-01" }
+      ], Date.now());
+      assert.strictEqual(lowBalance.length, 1);
+      assert.ok(lowBalance[0].includes("Jane Doe"));
+    }),
+    ok("referral: low-balance alert fires at 1 visit left", () => {
+      const { lowBalance } = buildReferralAlerts([
+        { patient_name: "John Smith", phone: "+18085550002", total_authorized_visits: 10, used_visits: 9, referral_end_date: "2027-06-01" }
+      ], Date.now());
+      assert.strictEqual(lowBalance.length, 1);
+    }),
+    ok("referral: no low-balance alert at 3 visits left", () => {
+      const { lowBalance } = buildReferralAlerts([
+        { patient_name: "Pat Kim", phone: "+18085550003", total_authorized_visits: 10, used_visits: 7, referral_end_date: "2027-06-01" }
+      ], Date.now());
+      assert.strictEqual(lowBalance.length, 0);
+    }),
+    ok("referral: no alert when low_balance_warned already set", () => {
+      const { lowBalance } = buildReferralAlerts([
+        { patient_name: "Jane Doe", phone: "+18085550001", total_authorized_visits: 10, used_visits: 8, referral_end_date: "2027-06-01", low_balance_warned: true }
+      ], Date.now());
+      assert.strictEqual(lowBalance.length, 0);
+    }),
+    ok("referral: expiry alert fires within 14 days", () => {
+      const inTenDays = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      const { expiry } = buildReferralAlerts([
+        { patient_name: "Sam Lee", phone: "+18085550004", total_authorized_visits: 10, used_visits: 5, referral_end_date: inTenDays }
+      ], Date.now());
+      assert.strictEqual(expiry.length, 1);
+      assert.ok(expiry[0].includes("Sam Lee"));
+    }),
+    ok("referral: no expiry alert when more than 14 days remain", () => {
+      const inThirtyDays = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      const { expiry } = buildReferralAlerts([
+        { patient_name: "Sam Lee", phone: "+18085550004", total_authorized_visits: 10, used_visits: 5, referral_end_date: inThirtyDays }
+      ], Date.now());
+      assert.strictEqual(expiry.length, 0);
+    }),
+    ok("referral: no expiry alert when expiry_warned already set", () => {
+      const inTenDays = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      const { expiry } = buildReferralAlerts([
+        { patient_name: "Sam Lee", phone: "+18085550004", total_authorized_visits: 10, used_visits: 5, referral_end_date: inTenDays, expiry_warned: true }
+      ], Date.now());
+      assert.strictEqual(expiry.length, 0);
+    }),
+    ok("referral: zero remaining visits generates no alerts", () => {
+      const inTenDays = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      const { lowBalance, expiry } = buildReferralAlerts([
+        { patient_name: "Done Patient", phone: "+18085550005", total_authorized_visits: 10, used_visits: 10, referral_end_date: inTenDays }
+      ], Date.now());
+      assert.strictEqual(lowBalance.length, 0);
+      assert.strictEqual(expiry.length, 0);
+    }),
+    ok("referral: empty list returns no alerts", () => {
+      const { lowBalance, expiry } = buildReferralAlerts([], Date.now());
+      assert.strictEqual(lowBalance.length, 0);
+      assert.strictEqual(expiry.length, 0);
     }),
   ]);
 

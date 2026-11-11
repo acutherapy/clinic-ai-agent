@@ -326,9 +326,11 @@ If no new valid clinic-related questions or local terms are found, output exactl
       autoLearnSummary = "自动学习运行失败：" + learnErr.message;
     }
 
-    // 5.7 Expiration & Low Balance Referral Warnings
+    // 5.7 Referral alerts — collected for internal report only; no patient SMS
     let lowBalanceWarnedCount = 0;
     let expiryWarnedCount = 0;
+    let lowBalanceAlerts: string[] = [];
+    let expiryAlerts: string[] = [];
     try {
       const { data: activeReferrals, error: activeRefErr } = await supabase
         .from("patient_referrals")
@@ -338,30 +340,12 @@ If no new valid clinic-related questions or local terms are found, output exactl
       if (activeRefErr) throw activeRefErr;
 
       if (activeReferrals && activeReferrals.length > 0) {
-        let slots: string[] = [];
-        try {
-          const slotsResponse = await internalFetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/find-slots`);
-          const slotsResult = await slotsResponse.json();
-          slots = slotsResult.slots || [];
-        } catch (err) {
-          console.error("Error fetching slots for daily report warnings:", err);
-        }
-
-        for (const ref of activeReferrals) {
-          const remaining = ref.total_authorized_visits - ref.used_visits;
-          const expDate = new Date(ref.referral_end_date);
-          const diffDays = Math.ceil((expDate.getTime() - nowHonolulu.getTime()) / (1000 * 60 * 60 * 24));
-
-          // 1. Low Balance Alert (<= 2 visits left, not warned yet)
-          if (remaining > 0 && remaining <= 2 && !ref.low_balance_warned) {
-            console.log(`[Policy Suspension] Low-balance alert suppressed for ${ref.patient_name} (${ref.phone}): ${remaining} sessions left`);
-          }
-
-          // 2. Expiration Alert (<= 14 days left, not warned yet)
-          if (remaining > 0 && diffDays >= 0 && diffDays <= 14 && !ref.expiry_warned) {
-            console.log(`[Policy Suspension] Referral expiry alert suppressed for ${ref.patient_name} (${ref.phone}): expires ${ref.referral_end_date}`);
-          }
-        }
+        const { buildReferralAlerts } = await import("@/lib/booking-utils");
+        const alerts = buildReferralAlerts(activeReferrals, nowHonolulu.getTime());
+        lowBalanceAlerts = alerts.lowBalance;
+        expiryAlerts    = alerts.expiry;
+        lowBalanceWarnedCount = lowBalanceAlerts.length;
+        expiryWarnedCount     = expiryAlerts.length;
       }
     } catch (refWarnErr: any) {
       console.error("Referral warnings cron failed:", refWarnErr.message);
@@ -479,7 +463,8 @@ If no new valid clinic-related questions or local terms are found, output exactl
 
 ⚠️ 待处理警报与摘要:
    - 需人工回复患者数: ${pendingCount} 个
-   - 转诊到期已发提醒: ${lowBalanceWarnedCount + expiryWarnedCount} 个
+   - 转诊余额不足 (Low Balance): ${lowBalanceWarnedCount} 个${lowBalanceAlerts.length > 0 ? "\n" + lowBalanceAlerts.map((a: string) => `     • ${a}`).join("\n") : ""}
+   - 转诊即将到期 (Expiry): ${expiryWarnedCount} 个${expiryAlerts.length > 0 ? "\n" + expiryAlerts.map((a: string) => `     • ${a}`).join("\n") : ""}
    - 信号订阅状态: ${subscriptionStatus.includes("Healthy") ? "正常 (Healthy)" : "异常"}
 
 💬 对话摘要与跟进提醒 (当天/Today):

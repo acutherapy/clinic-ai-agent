@@ -5,6 +5,7 @@ import { generateEmmaResponse } from "@/lib/emma";
 import { supabase } from "@/lib/supabase";
 import { internalFetch } from "@/lib/internal-fetch";
 import { handleBossConversation } from "@/lib/boss-agent";
+import { shouldAlertStaff, POLICY_GATE_MARKER } from "@/lib/booking-utils";
 
 const DR_CAI_PHONE = "+18083083879";
 
@@ -421,18 +422,39 @@ export async function POST(req: NextRequest) {
 
     if (isExistingPatient) {
       console.log(`[Policy Gate] Existing patient ${phone} routed to human staff.`);
-      const alreadyPending = existingLeadCheck?.pending_human_reply === true;
-      if (!alreadyPending) {
+
+      // Primary dedup: leads record flag
+      const pendingHumanReply = existingLeadCheck?.pending_human_reply === true;
+
+      // Fallback dedup for patients with no leads record: check sms_conversations
+      let hasRecentAlert = false;
+      if (!pendingHumanReply) {
+        const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+        const { data: recentMarker } = await supabase
+          .from("sms_conversations")
+          .select("id")
+          .eq("phone", phone)
+          .eq("role", "assistant")
+          .ilike("message", `${POLICY_GATE_MARKER}%`)
+          .gte("created_at", twoHoursAgo)
+          .limit(1)
+          .maybeSingle();
+        hasRecentAlert = !!recentMarker;
+      }
+
+      if (shouldAlertStaff(pendingHumanReply, hasRecentAlert)) {
         const patientDisplayName = existingLeadCheck?.name || phone;
         try {
           await sendSMS(DR_CAI_PHONE, `[Patient SMS] ${patientDisplayName} (${phone}) texted: "${message}". Emma has not replied — please handle directly.`);
         } catch (notifyErr: any) {
           console.error("Failed to notify Dr. Cai of existing patient SMS:", notifyErr.message);
         }
+        await saveConversation(phone, "assistant", `${POLICY_GATE_MARKER} Staff alert sent.`);
         if (existingLeadCheck?.id) {
           await supabase.from("leads").update({ pending_human_reply: true, pause_emma: true }).eq("id", existingLeadCheck.id);
         }
       }
+
       return NextResponse.json({
         success: true,
         routedToHuman: true,

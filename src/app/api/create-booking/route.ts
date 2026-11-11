@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { internalFetch } from "@/lib/internal-fetch";
+import { validateSlotTime } from "@/lib/booking-utils";
 
 export async function POST(
 req: NextRequest
@@ -34,6 +35,17 @@ const targetDay = dayMap[day];
 
 if (targetDay === undefined) {
   throw new Error("Invalid day");
+}
+
+const slotError = validateSlotTime(time, day, location);
+if (slotError) {
+  return NextResponse.json({
+    success: false,
+    reason: "INVALID_SLOT",
+    slotError,
+    message: `Requested time is not an approved clinic slot (${slotError}). Please contact staff for assistance.`,
+    routeToHuman: true,
+  }, { status: 400 });
 }
 
 while (
@@ -161,6 +173,15 @@ const dayStr = `${monthName} ${dayNum}${suffix}`;
 const ampm = hourNum >= 12 ? "PM" : "AM";
 const displayHour = hourNum % 12 === 0 ? 12 : hourNum % 12;
 const timeStr = `${displayHour}:00 ${ampm}`;
+
+if (!result.success) {
+  return NextResponse.json({
+    success: false,
+    reason: result.error || "BOOKING_FAILED",
+    message: result.message || "Booking could not be completed. Please contact staff.",
+    routeToHuman: true,
+  });
+}
 
 return NextResponse.json({
   success: true,
