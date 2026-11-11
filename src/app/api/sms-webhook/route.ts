@@ -58,10 +58,14 @@ export async function POST(req: NextRequest) {
     // Dedup: atomic messageId upsert — persistent, handles simultaneous RingCentral retries.
     // ignoreDuplicates:true returns 0 rows on conflict → already processed → skip.
     if (direction === "Inbound" && messageId) {
-      const { data: dedupInserted } = await supabase
+      const { data: dedupInserted, error: dedupError } = await supabase
         .from("sms_inbound_ids")
         .upsert({ message_id: String(messageId) }, { onConflict: "message_id", ignoreDuplicates: true })
         .select("message_id");
+      if (dedupError) {
+        console.error("[Dedup] Database error; refusing to acknowledge inbound message:", dedupError);
+        return NextResponse.json({ success: false, error: "Inbound dedup unavailable" }, { status: 503 });
+      }
       if (!dedupInserted || dedupInserted.length === 0) {
         console.log(`[Dedup] messageId ${messageId} already processed, skipping.`);
         return NextResponse.json({ success: true, skippedDuplicate: true });
