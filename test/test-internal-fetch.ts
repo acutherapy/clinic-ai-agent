@@ -124,7 +124,7 @@ export async function runTests() {
     { file: "src/app/api/calendar-agent/route.ts",            patterns: ["find-slots"] },
     { file: "src/app/api/sms-agent/route.ts",                 patterns: ["find-slots"] },
     { file: "src/app/api/cron/daily-report/route.ts",         patterns: ["find-slots"] },
-    { file: "src/app/api/cron/follow-up/route.ts",            patterns: ["find-slots"] },
+    // follow-up/route.ts is suspended and makes no internal API calls
     { file: "src/app/api/create-booking/route.ts",            patterns: ["create-appointment"] },
   ];
 

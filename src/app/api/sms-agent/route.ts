@@ -1,103 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { sendSMS } from "@/lib/ringcentral";
-import { saveConversation, getConversationHistory, getPhoneFilter } from "@/lib/conversation";
+import { getConversationHistory, getPhoneFilter } from "@/lib/conversation";
 import { generateEmmaResponse } from "@/lib/emma";
 import { internalFetch } from "@/lib/internal-fetch";
 
 export async function GET() {
-  try {
-    return NextResponse.json({ suspended: true, reason: "operating_policy" });
-    const { data, error } = await supabase
-      .from("appointments")
-      .select("*")
-      .eq("agent_status", "awaiting_reply")
-      .is("sms_sent_at", null);
-
-    if (error) {
-      throw error;
-    }
-
-    if (!data || data.length === 0) {
-      return NextResponse.json({
-        success: true,
-        count: 0,
-        message: "No SMS waiting to send",
-      });
-    }
-
-    for (const patient of data) {
-      const cleanPhone = patient.phone.replace(/\D/g, "");
-      const cleanPhone10 = cleanPhone.slice(-10);
-      let exists = false;
-      if (cleanPhone10) {
-        const [lCheck, aCheck, hCheck] = await Promise.all([
-          supabase.from("leads").select("id").or(getPhoneFilter(patient.phone)).limit(1).maybeSingle(),
-          supabase.from("appointments").select("id").or(getPhoneFilter(patient.phone)).limit(1).maybeSingle(),
-          supabase.from("appointment_history").select("id").or(getPhoneFilter(patient.phone)).limit(1).maybeSingle()
-        ]);
-        if (lCheck.data || aCheck.data || hCheck.data) {
-          exists = true;
-        }
-      }
-
-      if (!exists) {
-        console.log(`Skipping outreach for stranger/deleted number: ${patient.phone}`);
-        continue;
-      }
-
-      const suggestedTimes = patient.suggested_times || [];
-
-      // Generate a warm, personalized outreach message using Emma
-      const outreachPromptMessage = `Hi ${patient.patient_name}, I received your clinic request regarding: ${patient.chief_complaint || "treatment"}. Here are our available times.`;
-      
-      const smsMessage = await generateEmmaResponse({
-        patientMessage: outreachPromptMessage,
-        conversationHistory: [],
-        intent: "CHECK_AVAILABILITY",
-        language: "English",
-        availableSlots: suggestedTimes,
-        phone: patient.phone,
-      });
-
-      console.log("=================================");
-      console.log("TO:", patient.phone);
-      console.log(smsMessage);
-      console.log("=================================");
-
-      await sendSMS(patient.phone, smsMessage);
-
-      // Save assistant outreach to conversation history
-      await saveConversation(patient.phone, "assistant", smsMessage);
-
-      await supabase
-        .from("appointments")
-        .update({
-          sms_sent_at: new Date().toISOString(),
-          notes:
-            (patient.notes || "") +
-            "\nSMS generated " +
-            new Date().toISOString(),
-        })
-        .eq("id", patient.id);
-    }
-
-    return NextResponse.json({
-      success: true,
-      count: data.length,
-      status: "sms_generated",
-    });
-
-  } catch (err: any) {
-    console.error("sms-agent GET error:", err);
-    return NextResponse.json(
-      {
-        success: false,
-        error: err.message,
-      },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json({ suspended: true, reason: "operating_policy" });
 }
 
 export async function POST(req: NextRequest) {
