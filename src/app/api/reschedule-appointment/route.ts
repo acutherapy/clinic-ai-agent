@@ -26,23 +26,28 @@ export async function POST(req: NextRequest) {
       appointmentId,
     } = body;
 
+    if (!startTime) {
+      return NextResponse.json(
+        { success: false, reason: "MISSING_START_TIME", error: "startTime is required" },
+        { status: 400 }
+      );
+    }
+
     // Liliha closure and approved-slot validation on the new time
     const normalizedLocation = normalizeLocation(location);
-    const slotDate = startTime ? startTime.slice(0, 10) : "";
-    if (slotDate && !normalizedLocation.toLowerCase().includes("aiea") && isLilihaClosurePeriod(slotDate)) {
+    const slotDate = startTime.slice(0, 10);
+    if (!normalizedLocation.toLowerCase().includes("aiea") && isLilihaClosurePeriod(slotDate)) {
       return NextResponse.json(
         { success: false, error: "LILIHA_CLOSED", message: "Liliha clinic is closed November 16–December 6, 2026. Please book at the Aiea location." },
         { status: 409 }
       );
     }
-    if (startTime) {
-      const timeError = validateStartTime(startTime, normalizedLocation);
-      if (timeError) {
-        return NextResponse.json(
-          { success: false, error: "INVALID_SLOT", slotError: timeError, message: `Requested time is not an approved clinic slot (${timeError}). Please contact staff.` },
-          { status: 400 }
-        );
-      }
+    const timeError = validateStartTime(startTime, normalizedLocation);
+    if (timeError) {
+      return NextResponse.json(
+        { success: false, error: "INVALID_SLOT", slotError: timeError, message: `Requested time is not an approved clinic slot (${timeError}). Please contact staff.` },
+        { status: 400 }
+      );
     }
 
     // Explicit appointmentId enables correct selection when caller has multiple
