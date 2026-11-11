@@ -24,6 +24,7 @@ const calendar = google.calendar({ version: "v3", auth: oauth2Client });
 
 export async function GET(req: NextRequest) {
   try {
+    return NextResponse.json({ suspended: true, reason: "operating_policy" });
     const { searchParams } = new URL(req.url);
     const isDryRun = searchParams.get("dryrun") === "true";
 

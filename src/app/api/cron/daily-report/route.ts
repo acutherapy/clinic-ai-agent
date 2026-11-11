@@ -354,50 +354,12 @@ If no new valid clinic-related questions or local terms are found, output exactl
 
           // 1. Low Balance Alert (<= 2 visits left, not warned yet)
           if (remaining > 0 && remaining <= 2 && !ref.low_balance_warned) {
-            const promptMessage = `System Automated Low-Balance Warning. The patient John has only ${remaining} sessions left on their referral (No: ${ref.referral_number}). Remind them and suggest slots to book.`;
-            const message = await generateEmmaResponse({
-              patientMessage: promptMessage,
-              patientName: ref.patient_name,
-              conversationHistory: [],
-              intent: "REFERRAL_LOW_BALANCE_REMINDER",
-              language: "English",
-              availableSlots: slots,
-              phone: ref.phone,
-            });
-
-            await sendSMS(ref.phone, message);
-            await saveConversation(ref.phone, "assistant", message);
-
-            await supabase
-              .from("patient_referrals")
-              .update({ low_balance_warned: true })
-              .eq("id", ref.id);
-
-            lowBalanceWarnedCount++;
+            console.log(`[Policy Suspension] Low-balance alert suppressed for ${ref.patient_name} (${ref.phone}): ${remaining} sessions left`);
           }
 
           // 2. Expiration Alert (<= 14 days left, not warned yet)
           if (remaining > 0 && diffDays >= 0 && diffDays <= 14 && !ref.expiry_warned) {
-            const promptMessage = `System Automated Expiration Warning. The patient's referral (No: ${ref.referral_number}) is expiring in ${diffDays} days on ${ref.referral_end_date}. Remind them and suggest slots to book.`;
-            const message = await generateEmmaResponse({
-              patientMessage: promptMessage,
-              patientName: ref.patient_name,
-              conversationHistory: [],
-              intent: "REFERRAL_EXPIRING_REMINDER",
-              language: "English",
-              availableSlots: slots,
-              phone: ref.phone,
-            });
-
-            await sendSMS(ref.phone, message);
-            await saveConversation(ref.phone, "assistant", message);
-
-            await supabase
-              .from("patient_referrals")
-              .update({ expiry_warned: true })
-              .eq("id", ref.id);
-
-            expiryWarnedCount++;
+            console.log(`[Policy Suspension] Referral expiry alert suppressed for ${ref.patient_name} (${ref.phone}): expires ${ref.referral_end_date}`);
           }
         }
       }

@@ -7,6 +7,7 @@ import { internalFetch } from "@/lib/internal-fetch";
 
 export async function GET() {
   try {
+    return NextResponse.json({ suspended: true, reason: "operating_policy" });
     const { data, error } = await supabase
       .from("appointments")
       .select("*")

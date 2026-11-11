@@ -7,6 +7,7 @@ import { internalFetch } from "@/lib/internal-fetch";
 
 export async function GET(req: NextRequest) {
   try {
+    return NextResponse.json({ suspended: true, reason: "operating_policy" });
     // 1. Fetch all leads who are eligible for follow-up (NEW or CONTACTED, not opted out, not paused)
     const activeFollowUpStatuses = [
       "NEW", "CONTACTED", "contacted", 

@@ -141,6 +141,7 @@ export async function POST(req: NextRequest) {
     // or has pre-existing conversation history with the clinic
     let existsInDb = false;
     let hasHistory = false;
+    let isExistingPatient = false;
 
     if (cleanPhone10) {
       const [leadCheck, apptCheck, historyCheck, referralCheck, existingHistory] = await Promise.all([
@@ -176,6 +177,7 @@ export async function POST(req: NextRequest) {
       if (leadCheck.data || apptCheck.data || historyCheck.data || referralCheck?.data || hasHistory) {
         existsInDb = true;
       }
+      isExistingPatient = !!(apptCheck.data || historyCheck.data || referralCheck?.data);
     }
 
     if (!existsInDb) {
@@ -414,6 +416,27 @@ export async function POST(req: NextRequest) {
         success: true,
         skippedEmmaPaused: true,
         message: "Emma is paused for this patient because a human has taken over."
+      });
+    }
+
+    if (isExistingPatient) {
+      console.log(`[Policy Gate] Existing patient ${phone} routed to human staff.`);
+      const alreadyPending = existingLeadCheck?.pending_human_reply === true;
+      if (!alreadyPending) {
+        const patientDisplayName = existingLeadCheck?.name || phone;
+        try {
+          await sendSMS(DR_CAI_PHONE, `[Patient SMS] ${patientDisplayName} (${phone}) texted: "${message}". Emma has not replied — please handle directly.`);
+        } catch (notifyErr: any) {
+          console.error("Failed to notify Dr. Cai of existing patient SMS:", notifyErr.message);
+        }
+        if (existingLeadCheck?.id) {
+          await supabase.from("leads").update({ pending_human_reply: true, pause_emma: true }).eq("id", existingLeadCheck.id);
+        }
+      }
+      return NextResponse.json({
+        success: true,
+        routedToHuman: true,
+        message: "Existing patient routed to human staff per operating policy."
       });
     }
 
