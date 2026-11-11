@@ -5,6 +5,7 @@ import { sendSMS } from "@/lib/ringcentral";
 import { syncPatientReferrals } from "@/lib/referral";
 import { checkInternalKey } from "@/lib/require-internal-key";
 import { checkSlotCapacity } from "@/lib/capacity";
+import { validateStartTime, isLilihaClosurePeriod, normalizeLocation } from "@/lib/booking-utils";
 
 const CALENDAR_ID =
   "46d7671d8624d3f9f0c685943921309a7d1801a2ae584906b21ea114282206ff@group.calendar.google.com";
@@ -24,6 +25,25 @@ export async function POST(req: NextRequest) {
       location = "Liliha Clinic",
       appointmentId,
     } = body;
+
+    // Liliha closure and approved-slot validation on the new time
+    const normalizedLocation = normalizeLocation(location);
+    const slotDate = startTime ? startTime.slice(0, 10) : "";
+    if (slotDate && !normalizedLocation.toLowerCase().includes("aiea") && isLilihaClosurePeriod(slotDate)) {
+      return NextResponse.json(
+        { success: false, error: "LILIHA_CLOSED", message: "Liliha clinic is closed November 16–December 6, 2026. Please book at the Aiea location." },
+        { status: 409 }
+      );
+    }
+    if (startTime) {
+      const timeError = validateStartTime(startTime, normalizedLocation);
+      if (timeError) {
+        return NextResponse.json(
+          { success: false, error: "INVALID_SLOT", slotError: timeError, message: `Requested time is not an approved clinic slot (${timeError}). Please contact staff.` },
+          { status: 400 }
+        );
+      }
+    }
 
     // Explicit appointmentId enables correct selection when caller has multiple
     // future appointments. Falls back to legacy ORDER BY created_at DESC when absent.

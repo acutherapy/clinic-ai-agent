@@ -11,6 +11,7 @@ import {
   normalizeService,
   isLilihaClosurePeriod,
   validateBookingFields,
+  validateStartTime,
 } from "@/lib/booking-utils";
 
 const CALENDAR_ID =
@@ -57,6 +58,20 @@ export async function POST(req: NextRequest) {
           message: "Liliha clinic is closed November 16–December 6, 2026. Please book at the Aiea location.",
         },
         { status: 409 }
+      );
+    }
+
+    // ── 2b. Approved slot time validation ────────────────────────────────────
+    const timeError = validateStartTime(startTime, location);
+    if (timeError) {
+      return NextResponse.json(
+        {
+          success:   false,
+          error:     "INVALID_SLOT",
+          slotError: timeError,
+          message:   `Requested time is not an approved clinic slot (${timeError}). Please contact staff.`,
+        },
+        { status: 400 }
       );
     }
 

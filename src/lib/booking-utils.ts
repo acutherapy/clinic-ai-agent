@@ -57,6 +57,47 @@ export function shouldAlertStaff(
 export const POLICY_GATE_MARKER = "[PolicyGate:notified]";
 
 /**
+ * Validate an ISO start-time string (YYYY-MM-DDTHH:MM:SS±offset) against approved clinic hours.
+ * Day-of-week is derived from the YYYY-MM-DD portion using UTC only — never local time.
+ * Returns null if valid, or an error reason string if invalid.
+ *
+ * Use this at every calendar-writing endpoint (create-appointment, reschedule-appointment)
+ * so no path can bypass approved-hour enforcement.
+ */
+export function validateStartTime(startTime: string, location: string): string | null {
+  const tIdx = startTime.indexOf("T");
+  if (tIdx === -1) return "INVALID_FORMAT";
+
+  const dateStr  = startTime.slice(0, tIdx);
+  const timePart = startTime.slice(tIdx + 1);
+  const colonIdx = timePart.indexOf(":");
+  if (colonIdx === -1) return "INVALID_FORMAT";
+
+  const hour   = parseInt(timePart.slice(0, colonIdx), 10);
+  const minute = parseInt(timePart.slice(colonIdx + 1, colonIdx + 3), 10);
+  if (isNaN(hour) || isNaN(minute)) return "INVALID_FORMAT";
+  if (minute !== 0) return "PARTIAL_HOUR";
+
+  const parts = dateStr.split("-");
+  const year  = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10);
+  const day   = parseInt(parts[2], 10);
+  if (!year || !month || !day) return "INVALID_FORMAT";
+
+  const dow = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  if (dow === 0) return "CLINIC_CLOSED_SUNDAY";
+
+  const isAiea     = (location || "").toLowerCase().includes("aiea");
+  const isSaturday = dow === 6;
+  const approved: readonly number[] = isAiea
+    ? (isSaturday ? CLINIC_HOURS.aiea.saturday : CLINIC_HOURS.aiea.weekday)
+    : (isSaturday ? CLINIC_HOURS.liliha.saturday : CLINIC_HOURS.liliha.weekday);
+
+  if (!(approved as number[]).includes(hour)) return "HOUR_NOT_APPROVED";
+  return null;
+}
+
+/**
  * Collect referral low-balance and expiry alerts for the daily report.
  * No SMS is sent — lines are returned for inclusion in Dr. Cai's report only.
  */
