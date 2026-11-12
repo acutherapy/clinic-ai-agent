@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     const { data, error } = await supabase
       .from("appointment_history")
-      .select("id, appointment_time, service_type, location")
+      .select("id, appointment_time, service_type")
       .eq("phone", phone)
       .gt("appointment_time", now)
       .order("appointment_time", { ascending: true })
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
         id:              row.id,
         appointmentTime: row.appointment_time,
         serviceType:     row.service_type || "Acupuncture",
-        location:        row.location     || "Liliha Clinic",
+        location:        "Location not recorded",
         label,
       };
     });
