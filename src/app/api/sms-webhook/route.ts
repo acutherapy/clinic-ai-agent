@@ -8,6 +8,7 @@ import { handleBossConversation } from "@/lib/boss-agent";
 import { shouldAlertStaff, POLICY_GATE_MARKER } from "@/lib/booking-utils";
 
 const DR_CAI_PHONE = "+18083083879";
+const HUMAN_TAKEOVER_MARKER = "[HumanTakeover:active]";
 
 export async function POST(req: NextRequest) {
   try {
@@ -53,6 +54,23 @@ export async function POST(req: NextRequest) {
 
     const cleanPhone = phone.replace(/\D/g, "");
     const cleanPhone10 = cleanPhone.slice(-10);
+
+    // Dedup: atomic messageId upsert — persistent, handles simultaneous RingCentral retries.
+    // ignoreDuplicates:true returns 0 rows on conflict → already processed → skip.
+    if (direction === "Inbound" && messageId) {
+      const { data: dedupInserted, error: dedupError } = await supabase
+        .from("sms_inbound_ids")
+        .upsert({ message_id: String(messageId) }, { onConflict: "message_id", ignoreDuplicates: true })
+        .select("message_id");
+      if (dedupError) {
+        console.error("[Dedup] Database error; refusing to acknowledge inbound message:", dedupError);
+        return NextResponse.json({ success: false, error: "Inbound dedup unavailable" }, { status: 503 });
+      }
+      if (!dedupInserted || dedupInserted.length === 0) {
+        console.log(`[Dedup] messageId ${messageId} already processed, skipping.`);
+        return NextResponse.json({ success: true, skippedDuplicate: true });
+      }
+    }
 
     const isFromDrCai = phone === DR_CAI_PHONE || cleanPhone === DR_CAI_PHONE.replace(/\D/g, "") || cleanPhone10 === DR_CAI_PHONE.slice(-10);
 
@@ -120,12 +138,13 @@ export async function POST(req: NextRequest) {
         const isEmmaMessage = lastLogged && lastLogged.length > 0 && lastLogged[0].message === message;
 
         if (!isEmmaMessage) {
-          // Staff manually replied — save to history and pause Emma for 6 hours
           await saveConversation(phone, "assistant", message);
           await supabase
             .from("leads")
             .update({ pause_emma: true, human_takeover_at: new Date().toISOString() })
             .or(getPhoneFilter(phone));
+          // Durable marker for patients not in leads — persists across sessions
+          await saveConversation(phone, "assistant", HUMAN_TAKEOVER_MARKER);
           console.log(`[Human Takeover] Staff manually replied to ${phone}. Emma paused.`);
         }
       }
@@ -234,16 +253,20 @@ export async function POST(req: NextRequest) {
         existingLeadCheck = dbLead;
         isOptedOut = dbLead.is_opted_out || dbLead.status === "OPTED_OUT";
         isEmmaPaused = !!dbLead.pause_emma;
-
-        // Auto-resume after 6-hour human takeover cooldown
-        if (isEmmaPaused && dbLead.human_takeover_at) {
-          const hoursSinceTakeover = (Date.now() - new Date(dbLead.human_takeover_at).getTime()) / 3600000;
-          if (hoursSinceTakeover > 6) {
-            isEmmaPaused = false;
-            supabase.from("leads").update({ pause_emma: false, human_takeover_at: null }).eq("id", dbLead.id).then(() => {});
-            console.log(`[Human Takeover] 6-hour cooldown expired for ${phone}. Emma resumed.`);
-          }
-        }
+      }
+      // Fallback: patients without a leads record — check sms_conversations for durable marker.
+      // This ensures human takeover survives even when no leads row exists for the phone.
+      if (!isEmmaPaused) {
+        const { data: takeoverMarker } = await supabase
+          .from("sms_conversations")
+          .select("id")
+          .eq("phone", phone)
+          .eq("role", "assistant")
+          .eq("message", HUMAN_TAKEOVER_MARKER)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (takeoverMarker) isEmmaPaused = true;
       }
     } catch (lookupErr) {
       console.error("Error looking up lead for opt-out check:", lookupErr);
@@ -483,6 +506,44 @@ export async function POST(req: NextRequest) {
     // Look up patient name from leads or appointments table for personalized experience
     let patientName = sms.from?.name || "Patient";
     let leadRecord: any = null;
+
+    // Human takeover escalation: MUST run before any DB operations — prevents DB errors from bypassing policy
+    const isHumanTransfer = ["TRANSFER_TO_HUMAN", "CANCEL_APPOINTMENT", "UNKNOWN"].includes(bookingResult.intent);
+    if (isHumanTransfer) {
+      console.log(`[Human Handover] Intent is ${bookingResult.intent} for ${phone}. Pausing Emma.`);
+
+      try {
+        await supabase
+          .from("leads")
+          .update({
+            pause_emma: true,
+            pending_human_reply: true,
+            same_day_requested_at: new Date().toISOString()
+          })
+          .or(getPhoneFilter(phone));
+      } catch (err: any) {
+        console.error("Failed to update human takeover flags in database:", err.message);
+      }
+
+      let alertMsg = `🚨 HUMAN HELP REQUEST! ${patientName} (${phone}) texted: "${message}". Emma has paused. Please reply to them!`;
+      if (bookingResult.intent === "CANCEL_APPOINTMENT") {
+        alertMsg = `🚨 CANCELLATION REQUEST! ${patientName} (${phone}) texted: "${message}". Emma has paused. Please reply to them!`;
+      }
+
+      try {
+        await sendSMS(DR_CAI_PHONE, alertMsg);
+        console.log(`[Human Handover] Alert sent to Dr. Cai for ${phone}`);
+      } catch (err: any) {
+        console.error("Failed to send human handover SMS alert to Dr. Cai:", err.message);
+      }
+
+      return NextResponse.json({
+        success: true,
+        forwardedToHuman: true,
+        message: `Request forwarded to human staff due to intent: ${bookingResult.intent}. Emma paused.`
+      });
+    }
+
     try {
       const cleanPhone = phone.replace(/\D/g, "");
       const cleanPhone10 = cleanPhone.slice(-10);
@@ -498,7 +559,7 @@ export async function POST(req: NextRequest) {
       if (dbLead) {
         leadRecord = dbLead;
         patientName = dbLead.name || patientName;
-        
+
         // Update slots in the leads table if new ones are extracted
         const updates: any = {};
         if (bookingResult.slots?.name && (!dbLead.name || dbLead.name === "Patient" || dbLead.name === "Unknown")) {
@@ -533,52 +594,13 @@ export async function POST(req: NextRequest) {
             leadRecord = updatedLead;
           }
         }
-      }
-
-      // Human takeover escalation for CANCEL_APPOINTMENT, TRANSFER_TO_HUMAN, and UNKNOWN intents
-      const isHumanTransfer = ["TRANSFER_TO_HUMAN", "CANCEL_APPOINTMENT", "UNKNOWN"].includes(bookingResult.intent);
-      if (isHumanTransfer) {
-        console.log(`[Human Handover] Intent is ${bookingResult.intent} for ${phone}. Pausing Emma.`);
-        
-        // 1. Pause Emma and set pending human reply flags in database
-        try {
-          await supabase
-            .from("leads")
-            .update({ 
-              pause_emma: true,
-              pending_human_reply: true,
-              same_day_requested_at: new Date().toISOString()
-            })
-            .or(getPhoneFilter(phone));
-        } catch (err: any) {
-          console.error("Failed to update human takeover flags in database:", err.message);
-        }
-
-        // 2. Alert Dr. Cai immediately via SMS
-        let alertMsg = `🚨 HUMAN HELP REQUEST! ${patientName} (${phone}) texted: "${message}". Emma has paused. Please reply to them!`;
-        if (bookingResult.intent === "CANCEL_APPOINTMENT") {
-          alertMsg = `🚨 CANCELLATION REQUEST! ${patientName} (${phone}) texted: "${message}". Emma has paused. Please reply to them!`;
-        }
-        
-        try {
-          await sendSMS(DR_CAI_PHONE, alertMsg);
-          console.log(`[Human Handover] Alert sent to Dr. Cai for ${phone}`);
-        } catch (err: any) {
-          console.error("Failed to send human handover SMS alert to Dr. Cai:", err.message);
-        }
-
-        return NextResponse.json({
-          success: true,
-          forwardedToHuman: true,
-          message: `Request forwarded to human staff due to intent: ${bookingResult.intent}. Emma paused.`
-        });
       } else {
-        // If lead doesn't exist, create a new lead and save the extracted slots
+        // No existing lead: create a new one and save the extracted slots
         console.log(`Creating new lead for incoming phone ${phone} with slots.`);
         const initialName = bookingResult.slots?.name && bookingResult.slots.name !== "Patient" && bookingResult.slots.name !== "Unknown"
           ? bookingResult.slots.name
           : (sms.from?.name && sms.from.name !== "Unknown" ? sms.from.name : "Patient");
-          
+
         const { data: newLead, error: insertError } = await supabase
           .from("leads")
           .insert({
@@ -601,7 +623,7 @@ export async function POST(req: NextRequest) {
           patientName = newLead.name;
         } else {
           console.error("Failed to create new lead for incoming SMS:", insertError);
-          
+
           const { data: dbAppt } = await supabase
             .from("appointments")
             .select("patient_name")
@@ -815,41 +837,10 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
         }
       }
     } else if (bookingResult.intent === "CANCEL_APPOINTMENT") {
-      try {
-        const cancelResponse = await internalFetch(
-          `${process.env.NEXT_PUBLIC_SITE_URL}/api/cancel-appointment`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              phone,
-            }),
-          }
-        );
-
-        const cancelResult = await cancelResponse.json();
-        if (cancelResult.success) {
-          actionResult = {
-            success: true,
-            action: "CANCEL",
-          };
-        } else {
-          actionResult = {
-            success: false,
-            action: "CANCEL",
-            reason: "FAILED",
-          };
-        }
-      } catch (err: any) {
-        console.error("Cancel transaction failed:", err);
-        actionResult = {
-          success: false,
-          action: "CANCEL",
-          reason: "ERROR",
-        };
-      }
+      // All cancellations must be handled by human staff (enforced by isHumanTransfer above).
+      // This branch is a failsafe and should never be reached in normal operation.
+      console.log(`[Failsafe] CANCEL_APPOINTMENT reached intent router for ${phone}. Routing to human.`);
+      actionResult = { success: false, action: "CANCEL", reason: "ROUTED_TO_HUMAN" };
     }
 
     // 5. Retrieve available timeslots dynamically (Only for Class B/C booking-oriented intents)
@@ -949,24 +940,6 @@ Sent photos/documents (e.g. insurance card/ID). Please check the RingCentral mes
     // 10. Send SMS and save conversation
     await sendSMS(phone, finalReply, replyFrom);
     await saveConversation(phone, "assistant", finalReply);
-
-    // 11. If the intent is TRANSFER_TO_HUMAN or UNKNOWN (fallback cases), notify the doctor
-    const needsDoctorNotification = ["TRANSFER_TO_HUMAN", "UNKNOWN"].includes(bookingResult.intent);
-    
-    if (needsDoctorNotification) {
-      console.log(`Intent is ${bookingResult.intent}. Notifying doctor for human assistance...`);
-      
-      // Notify the doctor via SMS
-      await sendSMS(
-        DR_CAI_PHONE,
-        `
-HUMAN HELP NEEDED
-Patient: ${patientName} (${phone})
-Message: "${message}"
-Emma has replied and requested human staff follow-up.
-`
-      );
-    }
 
     return NextResponse.json({
       success: true,

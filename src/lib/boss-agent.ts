@@ -22,6 +22,28 @@ export async function handleBossConversation(bossMessage: string, bossPhone: str
   console.log(`[Boss Agent] Processing boss message: "${bossMessage}"`);
   
   try {
+    // Resume command: "resume +1XXXXXXXXXX" or "resume 808XXXXXXX"
+    const resumeMatch = bossMessage.match(/^resume\s+(\+?[\d\s()\-]+)/i);
+    if (resumeMatch) {
+      const rawNum = resumeMatch[1].replace(/[^\d+]/g, "");
+      const normalised = rawNum.startsWith("+") ? rawNum : `+1${rawNum.slice(-10)}`;
+      const { error: resumeErr } = await supabase
+        .from("leads")
+        .update({ pause_emma: false, pending_human_reply: false, human_takeover_at: null })
+        .or(`phone.eq.${normalised},phone.eq.${rawNum.slice(-10)}`);
+      if (resumeErr) {
+        return `Emma resume failed for ${normalised}: ${resumeErr.message}`;
+      }
+      // Also release the durable sms_conversations marker (covers patients without leads records)
+      await supabase
+        .from("sms_conversations")
+        .update({ message: "[HumanTakeover:released]" })
+        .or(`phone.eq.${normalised},phone.eq.${rawNum.slice(-10)}`)
+        .eq("role", "assistant")
+        .eq("message", "[HumanTakeover:active]");
+      return `✅ Emma resumed for ${normalised}. She will respond to their next message normally.`;
+    }
+
     // 1. Resolve Time in Honolulu (UTC-10)
     const nowHonolulu = new Date(Date.now() - 10 * 60 * 60 * 1000);
     const todayStr = nowHonolulu.toISOString().split("T")[0];
