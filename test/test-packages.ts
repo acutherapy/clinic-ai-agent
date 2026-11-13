@@ -314,6 +314,22 @@ export async function runTests() {
       assert.ok(mockNotFound.error, "Not-found response must have error message");
     }),
 
+    // ── D-TEXT-DR-01: daily-report route pricing (fix applied to worktree) ──
+
+    ok("daily-report route: pricing template uses $175 + Tax (not $182.83)", async () => {
+      // Read the actual route file to verify the fix was applied
+      const { readFileSync } = await import("fs");
+      const { resolve, dirname } = await import("path");
+      const { fileURLToPath } = await import("url");
+      const routePath = resolve(
+        fileURLToPath(import.meta.url),
+        "../../src/app/api/cron/daily-report/route.ts"
+      );
+      const content = readFileSync(routePath, "utf8");
+      assert.ok(content.includes("$175"), "daily-report route must reference $175 self-pay");
+      assert.ok(!content.includes("$182.83"), "daily-report route must not reference legacy $182.83");
+    }),
+
   ]);
 
   return report("test-packages", results);
