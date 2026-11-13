@@ -160,9 +160,9 @@ export async function runTests() {
 
     ok("cancel-appointment: phone in request must match appointment owner", () => {
       // Text Emma enforces: appointment.phone === request.phone
-      const appointmentPhone = "+18085551234";
-      const requestPhone     = "+18085551234"; // same caller
-      const foreignPhone     = "+18085559999"; // different caller
+      const appointmentPhone: string = "+18085551234";
+      const requestPhone: string     = "+18085551234"; // same caller
+      const foreignPhone: string     = "+18085559999"; // different caller
 
       assert.ok(appointmentPhone === requestPhone, "Same caller can cancel own appointment");
       assert.ok(appointmentPhone !== foreignPhone,
