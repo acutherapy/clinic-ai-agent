@@ -1,0 +1,60 @@
+name: Text Emma — Regression Tests
+
+on:
+  push:
+    branches:
+      - "test/**"
+      - "feature/**"
+  pull_request:
+    branches:
+      - "test/**"
+      - "feature/**"
+      - main
+
+# No production credentials are used or needed in this workflow.
+# All tests are offline/mock — no Supabase, no Google Calendar, no RingCentral,
+# no OpenAI, no RingCentral SMS, no production network calls.
+# VOICE_LIVE is hardcoded false. This workflow cannot deploy anything.
+permissions:
+  contents: read   # read-only; cannot push or deploy
+
+jobs:
+  test:
+    name: Regression test suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      # Explicitly block all production integrations
+      NODE_ENV: test
+      VOICE_LIVE: "false"
+      # No SUPABASE_URL, SUPABASE_SERVICE_KEY, GOOGLE_REFRESH_TOKEN, RINGCENTRAL_*,
+      # or INTERNAL_API_KEY set here. Tests must not require them.
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Run regression tests
+        run: npm test
+
+      - name: Assert VOICE_LIVE is false
+        # Hard safety check: verify the gate env var is never true in CI
+        run: |
+          if [ "$VOICE_LIVE" = "true" ]; then
+            echo "FATAL: VOICE_LIVE must never be true in CI"
+            exit 1
+          fi
+          echo "VOICE_LIVE=$VOICE_LIVE (safe)"
