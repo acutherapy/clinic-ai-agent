@@ -266,7 +266,7 @@ async function syncReferralToLeadsAndCases(record: any) {
           insurer: referral_class || "TriWest VA CCN",
           patient_name: patient_name,
           subscriber_number: referral_number || "",
-          status: "Waiting for schedule",
+          status: "Waiting for Schedule",
           end_date: referral_end_date || null,
           number_of_treatments: total_authorized_visits || 12,
           remaining_sessions: total_authorized_visits || 12,
