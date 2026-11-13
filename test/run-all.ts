@@ -14,11 +14,15 @@ import { runTests as runIdempotency }      from "./test-idempotency.js";
 import { runTests as runApptSelection }    from "./test-appointment-selection.js";
 import { runTests as runBookingSafety }    from "./test-booking-safety.js";
 import { runTests as runPolicyRegression } from "./test-policy-regression.js";
+// Stage B — comprehensive regression
+import { runTests as runPackages }         from "./test-packages.js";
+import { runTests as runSmsFlow }          from "./test-sms-webhook-flow.js";
+import { runTests as runVoiceApiCompat }   from "./test-voice-api-compatibility.js";
 
 async function main() {
   console.log("=".repeat(60));
-  console.log("  clinic-ai-agent — Phase 3B Test Suite");
-  console.log("  Branch: feature/voice-emma-integration");
+  console.log("  clinic-ai-agent — Comprehensive Regression Suite (Stage B)");
+  console.log("  Branch: test/emma-comprehensive-regression");
   console.log("=".repeat(60));
 
   const suites = [
@@ -29,6 +33,10 @@ async function main() {
     { name: "appointment-selection", fn: runApptSelection },
     { name: "booking-safety",        fn: runBookingSafety },
     { name: "policy-regression",     fn: runPolicyRegression },
+    // Stage B — comprehensive regression
+    { name: "packages",              fn: runPackages },
+    { name: "sms-webhook-flow",      fn: runSmsFlow },
+    { name: "voice-api-compat",      fn: runVoiceApiCompat },
   ];
 
   let totalPassed = 0;

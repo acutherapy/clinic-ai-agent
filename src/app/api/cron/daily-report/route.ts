@@ -236,7 +236,7 @@ ${queryTexts}
 - Central Scheduling Phone: (808) 528-7177.
 - Email: services@acutherapy.com.
 - Fax: Honolulu (808) 212-9459, Aiea (808) 452-1521.
-- Pricing: Acupuncture is $182.83 per session for out-of-pocket self-pay patients.
+- Pricing: Acupuncture is $175 + Tax per session for out-of-pocket self-pay patients.
 - Accepted Insurances: HMSA, Kaiser, UHA, HMAA, Medicare, VA Community Care (TriWest), Hawaii Auto PIP (car accidents), Workers Comp.
 
 Identify:
