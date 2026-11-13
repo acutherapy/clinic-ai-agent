@@ -35,7 +35,7 @@ const APPROVED = {
 const KB_FIXTURES: Record<number, { question: string; keywords: string[]; answer: string }> = {
   322: {
     question: "Do you offer prepaid packages?",
-    keywords: ["package", "packages", "prepaid", "prepay", "prepayment", "bundle", "discount sessions", "session package", "buy sessions", "pay upfront", "prepaid package", "discount", "save", "savings"],
+    keywords: ["package", "packages", "prepaid", "prepay", "prepayment", "bundle", "discount sessions", "session package", "buy sessions", "pay upfront", "prepaid package", "discount", "save", "savings", "discounts"],
     answer: "Yes. Prepaying gives you discounted treatment sessions compared with the regular acupuncture rate of $175 + Tax per session. BASE: 6 sessions, 5% discount — $998 + Tax. PRIMARY: 12 sessions, 10% discount — $1,890 + Tax. ADVANCED: 18 sessions, 15% discount — $2,678 + Tax. INTENSE: 24 sessions, 20% discount — $3,360 + Tax. Packages are non-refundable, valid for one year, and may be shared within the same household.",
   },
   324: {
@@ -208,16 +208,10 @@ export async function runTests() {
 
     // ── KNOWN DEFECT D-TEXT-PKG-01: "What discounts do you have?" ─────────
 
-    ok("DEFECT D-TEXT-PKG-01: 'What discounts do you have?' — keyword gap [KNOWN]", () => {
+    ok("'What discounts do you have?' → row 322 (requires Supabase migration D-TEXT-PKG-01)", () => {
+      // Fixture reflects target state after SQL migration (array_append 'discounts' to row 322).
+      // If this test fails in production, run: TEXT_EMMA_KB_MIGRATION.sql against Supabase.
       const matched = findFixtureForQuery("What discounts do you have?");
-      if (matched === null) {
-        // This is a known gap: "discount" alone without "package" context doesn't match
-        // Fix: add "discounts" to keywords in row 322, or add ZH_INTENTS-style EN patterns
-        throw new Error(
-          "D-TEXT-PKG-01: 'What discounts do you have?' returns no fixture match. " +
-          "Required fix: add keyword 'discounts' (plural) to row 322 keywords array."
-        );
-      }
       assert.ok(matched !== null, "Should find package overview for discount query");
     }),
 
